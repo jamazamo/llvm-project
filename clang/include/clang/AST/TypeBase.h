@@ -1577,6 +1577,9 @@ public:
   /// is a union that has a member that is non-trivial to copy. If this returns
   /// true, isNonTrivialToPrimitiveCopy returns PCK_Struct.
   bool hasNonTrivialToPrimitiveCopyCUnion() const;
+  //FILC : Review
+  // New TypeBase.h added in llvm-mainline
+  bool hasUnion() const;
 
   /// Determine whether expressions of the given type are forbidden
   /// from being lvalues in C.
@@ -1662,6 +1665,9 @@ private:
   static bool hasNonTrivialToPrimitiveDefaultInitializeCUnion(const RecordDecl *RD);
   static bool hasNonTrivialToPrimitiveDestructCUnion(const RecordDecl *RD);
   static bool hasNonTrivialToPrimitiveCopyCUnion(const RecordDecl *RD);
+  //FILC : Review
+  // New TypeBase.h added in llvm-mainline
+  static bool hasUnion(const RecordDecl *RD);
 };
 
 raw_ostream &operator<<(raw_ostream &OS, QualType QT);
@@ -8576,6 +8582,15 @@ inline LangAS QualType::getAddressSpace() const {
 /// Return the gc attribute of this type.
 inline Qualifiers::GC QualType::getObjCGCAttr() const {
   return getQualifiers().getObjCGCAttr();
+}
+
+
+//FILC: Review
+// It is not clear if it should go here or in Type.h
+inline bool QualType::hasUnion() const {
+  if (auto *RD = getTypePtr()->getBaseElementTypeUnsafe()->getAsRecordDecl())
+    return hasUnion(RD);
+  return false;
 }
 
 inline FunctionType::ExtInfo getFunctionExtInfo(const Type &t) {

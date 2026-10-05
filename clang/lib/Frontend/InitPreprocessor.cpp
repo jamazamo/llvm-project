@@ -857,6 +857,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // Compiler version introspection macros.
   Builder.defineMacro("__llvm__");  // LLVM Backend
   Builder.defineMacro("__clang__"); // Clang Frontend
+  //FILC: Review
+  Builder.defineMacro("__PIZLONATOR_WAS_HERE__"); // FilC
+  Builder.defineMacro("__FILC__"); // FilC
 #define TOSTR2(X) #X
 #define TOSTR(X) TOSTR2(X)
   Builder.defineMacro("__clang_major__", TOSTR(CLANG_VERSION_MAJOR));

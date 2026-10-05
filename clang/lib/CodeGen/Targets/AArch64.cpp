@@ -90,15 +90,11 @@ private:
 
   RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
                    AggValueSlot Slot) const override {
-    llvm::Type *BaseTy = CGF.ConvertType(Ty);
-    if (isa<llvm::ScalableVectorType>(BaseTy))
-      llvm::report_fatal_error("Passing SVE types to variadic functions is "
-                               "currently not supported");
-
-    return Kind == AArch64ABIKind::Win64
-               ? EmitMSVAArg(CGF, VAListAddr, Ty, Slot)
-           : isDarwinPCS() ? EmitDarwinVAArg(VAListAddr, Ty, CGF, Slot)
-                           : EmitAAPCSVAArg(VAListAddr, Ty, CGF, Kind, Slot);
+    //FILC: Review
+    return CGF.EmitLoadOfAnyValue(
+        CGF.MakeAddrLValue(
+            EmitVAArgInstr(CGF, VAListAddr, Ty, ABIArgInfo::getDirect()), Ty),
+        Slot);
   }
 
   RValue EmitMSVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
@@ -465,6 +461,12 @@ ABIArgInfo AArch64ABIInfo::classifyArgumentType(QualType Ty, bool IsVariadicFn,
   bool IsWin64 = Kind == AArch64ABIKind::Win64 ||
                  CallingConvention == llvm::CallingConv::Win64;
   bool IsWinVariadic = IsWin64 && IsVariadicFn;
+  //FILC: Review
+  // For HFAs/HVAs, cap the argument alignment to 16, otherwise
+  // set it to 8 according to the AAPCS64 document.
+  unsigned ActualAlign =
+      getContext().getTypeUnadjustedAlignInChars(Ty).getQuantity();
+  unsigned Align = (ActualAlign >= 16) ? 16 : 8;
   // In variadic functions on Windows, all composite types are treated alike,
   // no special handling of HFAs/HVAs.
   if (!IsWinVariadic && isHomogeneousAggregate(Ty, Base, Members)) {
@@ -473,11 +475,7 @@ ABIArgInfo AArch64ABIInfo::classifyArgumentType(QualType Ty, bool IsVariadicFn,
       return ABIArgInfo::getDirect(
           llvm::ArrayType::get(CGT.ConvertType(QualType(Base, 0)), Members));
 
-    // For HFAs/HVAs, cap the argument alignment to 16, otherwise
-    // set it to 8 according to the AAPCS64 document.
-    unsigned Align =
-        getContext().getTypeUnadjustedAlignInChars(Ty).getQuantity();
-    Align = (Align >= 16) ? 16 : 8;
+	//FILC: Review
     return ABIArgInfo::getDirect(
         llvm::ArrayType::get(CGT.ConvertType(QualType(Base, 0)), Members), 0,
         nullptr, true, Align);
@@ -496,55 +494,50 @@ ABIArgInfo AArch64ABIInfo::classifyArgumentType(QualType Ty, bool IsVariadicFn,
 
   // Aggregates <= 16 bytes are passed directly in registers or on the stack.
   if (Size <= 128) {
-    unsigned Alignment;
-    if (Kind == AArch64ABIKind::AAPCS) {
-      Alignment = getContext().getTypeUnadjustedAlign(Ty);
-      Alignment = Alignment < 128 ? 64 : 128;
-    } else {
-      Alignment =
-          std::max(getContext().getTypeAlign(Ty),
-                   (unsigned)getTarget().getPointerWidth(LangAS::Default));
+    //FILC Review
+    // Fil-C: variadic arguments are snapshotted by the pizlonator using the IR
+    // argument types at the call site, and the callee reads them back using
+    // llvm.va_arg with the aggregate's memory representation (see
+    // EmitVAArgInstr, which uses ConvertTypeForMem(Ty) regardless of the ABI
+    // coercion). If we coerced the aggregate to [2 x ptr] or [2 x i64] here,
+    // the call site would lay out 16 bytes per aggregate in the snapshot while
+    // the callee's va_arg would only advance by the aggregate's own size (when
+    // rounded up to word size), so every va_arg after the first one would read
+    // garbage. This broke binutils' aarch64 assembler, which passes
+    // aarch64_field structs through varargs (insert_fields in
+    // opcodes/aarch64-opc.h). So for unnamed arguments, pass the aggregate in
+    // its natural representation, and disable flattening so that the aggregate
+    // stays a single IR argument that the va_arg site can mirror.
+    if (!IsNamedArg) {
+      ABIArgInfo AI = ABIArgInfo::getDirect();
+      AI.setCanBeFlattened(false);
+      return AI;
     }
-    Size = llvm::alignTo(Size, Alignment);
-
-    // If the Aggregate is made up of pointers, use an array of pointers for the
-    // coerced type. This prevents having to convert ptr2int->int2ptr through
-    // the call, allowing alias analysis to produce better code.
-    auto ContainsOnlyPointers = [&](const auto &Self, QualType Ty) {
-      if (isEmptyRecord(getContext(), Ty, true))
-        return false;
-      const auto *RD = Ty->getAsRecordDecl();
-      if (!RD)
-        return false;
-      if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
-        for (const auto &I : CXXRD->bases())
-          if (!Self(Self, I.getType()))
-            return false;
-      }
-      return all_of(RD->fields(), [&](FieldDecl *FD) {
-        QualType FDTy = FD->getType();
-        if (FDTy->isArrayType())
-          FDTy = getContext().getBaseElementType(FDTy);
-        return (FDTy->isPointerOrReferenceType() &&
-                getContext().getTypeSize(FDTy) == 64 &&
-                !FDTy->getPointeeType().hasAddressSpace()) ||
-               Self(Self, FDTy);
-      });
-    };
-
-    // We use a pair of i64 for 16-byte aggregate with 8-byte alignment.
-    // For aggregates with 16-byte alignment, we use i128.
-    llvm::Type *BaseTy = llvm::Type::getIntNTy(getVMContext(), Alignment);
-    if ((Size == 64 || Size == 128) && Alignment == 64 &&
-        ContainsOnlyPointers(ContainsOnlyPointers, Ty))
-      BaseTy = llvm::PointerType::getUnqual(getVMContext());
+	//FILC Review
+    // Fil-C: it is only safe to represent this aggregate as an array of two
+    // pointers if the two pointer-sized words will be 8-byte aligned in
+    // memory. Use the adjusted alignment (getTypeAlignInChars), not the
+    // unadjusted alignment: the unadjusted alignment only accounts for the
+    // record's own fields and is 1 for classes whose alignment comes solely
+    // from base classes (like std::optional), which caused pointers inside
+    // such aggregates to be coerced to integers, losing their fil-c object
+    // metadata ("cannot read pointer with null object" panics). The adjusted
+    // alignment still catches genuinely under-aligned structs, which must not
+    // use the pointer coercion because fil-c pointer accesses require 8-byte
+    // alignment.
+    if (getContext().getTypeAlignInChars(Ty).getQuantity() >= 8) {
+      return ABIArgInfo::getDirect(
+        llvm::ArrayType::get(llvm::PointerType::get(getVMContext(), 0), 2));
+    }
     return ABIArgInfo::getDirect(
-        Size == Alignment ? BaseTy
-                          : llvm::ArrayType::get(BaseTy, Size / Alignment));
+      //FILC: Major review required
+      llvm::ArrayType::get(llvm::Type::getInt64Ty(getVMContext()), 2));
   }
 
-  return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace(),
-                                 /*ByVal=*/false);
+  // FILC: Review
+  // Variadic arguments must be byval, since EmitVAArg always reads them out of
+  // the varargs snapshot by value (for now).
+  return getNaturalAlignIndirect(Ty, /*ByVal=*/!IsNamedArg);
 }
 
 ABIArgInfo AArch64ABIInfo::classifyReturnType(QualType RetTy,
@@ -608,27 +601,15 @@ ABIArgInfo AArch64ABIInfo::classifyReturnType(QualType RetTy,
 
   // Aggregates <= 16 bytes are returned directly in registers or on the stack.
   if (Size <= 128) {
-    if (Size <= 64 && getDataLayout().isLittleEndian()) {
-      // Composite types are returned in lower bits of a 64-bit register for LE,
-      // and in higher bits for BE. However, integer types are always returned
-      // in lower bits for both LE and BE, and they are not rounded up to
-      // 64-bits. We can skip rounding up of composite types for LE, but not for
-      // BE, otherwise composite types will be indistinguishable from integer
-      // types.
+    //FILC Review
+    // Fil-C: same as the argument case above; use the adjusted alignment so
+    // that base-class-derived alignments are recognized.
+    if (getContext().getTypeAlignInChars(RetTy).getQuantity() >= 8) {
       return ABIArgInfo::getDirect(
-          llvm::IntegerType::get(getVMContext(), Size));
+        llvm::ArrayType::get(llvm::PointerType::get(getVMContext(), 0), 2));
     }
-
-    unsigned Alignment = getContext().getTypeAlign(RetTy);
-    Size = llvm::alignTo(Size, 64); // round up to multiple of 8 bytes
-
-    // We use a pair of i64 for 16-byte aggregate with 8-byte alignment.
-    // For aggregates with 16-byte alignment, we use i128.
-    if (Alignment < 128 && Size == 128) {
-      llvm::Type *BaseTy = llvm::Type::getInt64Ty(getVMContext());
-      return ABIArgInfo::getDirect(llvm::ArrayType::get(BaseTy, Size / 64));
-    }
-    return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), Size));
+    return ABIArgInfo::getDirect(
+      llvm::ArrayType::get(llvm::Type::getInt64Ty(getVMContext()), 2));
   }
 
   return getNaturalAlignIndirect(RetTy, getDataLayout().getAllocaAddrSpace());

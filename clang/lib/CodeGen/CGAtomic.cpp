@@ -160,7 +160,11 @@ namespace {
     }
 
     Address getAtomicAddressAsAtomicIntPointer() const {
-      return castToAtomicIntPointer(getAtomicAddress());
+      //FILC: Review
+      Address Result = getAtomicAddress();
+      if (Result.getElementType()->isPointerTy())
+        return Result;
+      return castToAtomicIntPointer(Result);
     }
 
     /// Is the atomic size larger than the underlying value type?
@@ -941,6 +945,23 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *Expr, Address Dest,
   Builder.SetInsertPoint(ContBB);
 }
 
+//FILC: Review
+static llvm::PointerType *getSinglePointerType(llvm::Type *Ty) {
+  if (auto *PT = dyn_cast<llvm::PointerType>(Ty))
+    return PT;
+  if (auto *ST = dyn_cast<llvm::StructType>(Ty)) {
+    if (ST->getNumElements() != 1)
+      return nullptr;
+    return getSinglePointerType(*ST->elements().begin());
+  }
+  if (auto *AT = dyn_cast<llvm::ArrayType>(Ty)) {
+    if (AT->getNumElements() != 1)
+      return nullptr;
+    return getSinglePointerType(AT->getElementType());
+  }
+  return nullptr;
+}
+
 RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   ApplyAtomGroup Grp(getDebugInfo());
 
@@ -984,6 +1005,9 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   llvm::Value *Order = EmitScalarExpr(E->getOrder());
   llvm::Value *Scope =
       E->getScopeModel() ? EmitScalarExpr(E->getScope()) : nullptr;
+  //FILC: Review
+  llvm::PointerType *PtrTy = getSinglePointerType(Ptr.getElementType());
+  bool ShouldUseIntValuesForPtrType = false;
 
   switch (E->getOp()) {
   case AtomicExpr::AO__c11_atomic_init:
@@ -1046,6 +1070,8 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   case AtomicExpr::AO__opencl_atomic_fetch_add:
   case AtomicExpr::AO__opencl_atomic_fetch_sub:
     if (MemTy->isPointerType()) {
+      // FILC: Review
+      ShouldUseIntValuesForPtrType = true;
       // For pointer arithmetic, we're required to do a bit of math:
       // adding 1 to an int* is not the same as adding 1 to a uintptr_t.
       // ... but only for the C11 builtins. The GNU builtins expect the
@@ -1148,7 +1174,16 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
   AtomicInfo Atomics(*this, AtomicVal);
 
   Address OriginalVal1 = Val1;
-  if (ShouldCastToIntPtrTy) {
+  //FILC: Review
+  if (PtrTy) {
+    Ptr = Ptr.withElementType(PtrTy);
+    if (!ShouldUseIntValuesForPtrType) {
+      if (Val1.isValid())
+        Val1 = Val1.withElementType(PtrTy);
+      if (Val2.isValid())
+        Val2 = Val2.withElementType(PtrTy);
+    }
+  } else if (ShouldCastToIntPtrTy) {
     Ptr = Atomics.castToAtomicIntPointer(Ptr);
     if (Val1.isValid())
       Val1 = Atomics.convertToAtomicIntPointer(Val1);
@@ -1156,13 +1191,19 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
       Val2 = Atomics.convertToAtomicIntPointer(Val2);
   }
   if (Dest.isValid()) {
-    if (ShouldCastToIntPtrTy)
+  //FILC: Review
+    if (PtrTy)
+      Dest = Dest.withElementType(PtrTy);
+    else if (ShouldCastToIntPtrTy)
       Dest = Atomics.castToAtomicIntPointer(Dest);
   } else if (E->isCmpXChg())
     Dest = CreateMemTempWithoutCast(RValTy, "cmpxchg.bool");
   else if (!RValTy->isVoidType()) {
     Dest = Atomics.CreateTempAlloca();
-    if (ShouldCastToIntPtrTy)
+	//FILC: Review
+    if (PtrTy)
+      Dest = Dest.withElementType(PtrTy);
+    else if (ShouldCastToIntPtrTy)
       Dest = Atomics.castToAtomicIntPointer(Dest);
   }
 

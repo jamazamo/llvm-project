@@ -199,7 +199,7 @@ AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
   HasUnalignedAccess = true;
 
   // AArch64 targets default to using the ARM C++ ABI.
-  TheCXXABI.set(TargetCXXABI::GenericAArch64);
+  TheCXXABI.set(TargetCXXABI::GenericItanium);
 
   if (Triple.getOS() == llvm::Triple::Linux)
     this->MCountName = "\01_mcount";
@@ -1492,7 +1492,7 @@ AArch64TargetInfo::checkCallingConvention(CallingConv CC) const {
 bool AArch64TargetInfo::isCLZForZeroUndef() const { return false; }
 
 TargetInfo::BuiltinVaListKind AArch64TargetInfo::getBuiltinVaListKind() const {
-  return TargetInfo::AArch64ABIBuiltinVaList;
+  return TargetInfo::CharPtrBuiltinVaList;
 }
 
 const char *const AArch64TargetInfo::GCCRegNames[] = {
@@ -1754,6 +1754,25 @@ bool AArch64TargetInfo::hasInt128Type() const { return true; }
 AArch64leTargetInfo::AArch64leTargetInfo(const llvm::Triple &Triple,
                                          const TargetOptions &Opts)
     : AArch64TargetInfo(Triple, Opts) {}
+
+// FILC: Removed in llvm main. Check if it is still needed
+void AArch64leTargetInfo::setDataLayout() {
+  if (getTriple().isOSBinFormatMachO()) {
+    if(getTriple().isArch32Bit())
+      resetDataLayout("e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-"
+                      "i128:128-n32:64-S128-Fn32",
+                      "_");
+    else
+      resetDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-"
+                      "n32:64-S128-Fn32",
+                      "_");
+  } else
+    resetDataLayout(
+        "e-m:e-ni:0-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
+        "i64:64-i128:128-n32:64-S128-Fn32",
+        "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
+        "i64:64-i128:128-n32:64-S128-Fn32", "");
+}
 
 void AArch64leTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {

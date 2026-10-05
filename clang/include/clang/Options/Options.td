@@ -753,6 +753,40 @@ def gcc_toolchain : Joined<["--"], "gcc-toolchain=">, Flags<[NoXarchOption]>,
 def gcc_triple_EQ : Joined<["--"], "gcc-triple=">,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Search for the GCC installation with the specified triple.">;
+//FILC: Review
+def filc_resource_dir : Joined<["--"], "filc-resource-dir=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C pizfix directory location (default: <binary>/../../../pizfix)">;
+def filc_dynamic_linker : Joined<["--"], "filc-dynamic-linker=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C dynamic linker path (default: pizfix/lib/ld-fil1-<arch>.so)">;
+def filc_crt_path : Joined<["--"], "filc-crt-path=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C CRT object files directory (default: pizfix/lib)">;
+def filc_stdfil_include : Joined<["--"], "filc-stdfil-include=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C stdfil include directory (default: pizfix/stdfil-include)">;
+def filc_os_include : Joined<["--"], "filc-os-include=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C OS include directory (default: pizfix/os-include)">;
+def filc_include : Joined<["--"], "filc-include=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Override Fil-C libc include directory (default: pizfix/include)">;
+def filc_cosmo : Flag<["--"], "filc-cosmo">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Force Fil-C cosmopolitan libc mode (static, non-PIE executables linked with cosmo CRT, ape.lds, and libyolocosmo.a)">;
+def filc_ape : Flag<["--"], "filc-ape">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"In cosmo mode, make the requested output file the APE (runnable on Windows x86_64/macOS/BSD/Linux) and keep the statically-linked ELF as <output>.dbg.  By default the ELF takes the requested output path and the APE is written next to it as <output>.com">;
+def filc_fat_ape : Flag<["--"], "filc-fat-ape">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"In cosmo mode for an x86_64 target, also build for aarch64 (cosmocc-style double link) and merge both images into one fat APE at <output> that runs on x86_64 and aarch64, on Linux/Windows/macOS/BSD.  The x86_64 ELF is kept as <output>.com.dbg and the aarch64 ELF as <output>.aarch64.elf.  Requires source inputs">;
+def filc_no_ape : Flag<["--"], "filc-no-ape">, Flags<[NoXarchOption, HelpHidden]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Internal: skip the APE post-link step in cosmo mode (used by the nested aarch64 link that --filc-fat-ape spawns)">;
+def yolo_assembler : Flag<["-"], "yolo-assembler">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption]>,
+  HelpText<"Use the built-in YOLO assembler for .s inputs instead of sarcasm">;
 def CC : Flag<["-"], "CC">, Visibility<[ClangOption, CC1Option]>,
   Group<Preprocessor_Group>,
     HelpText<"Include comments from within macros in preprocessed output">,
@@ -1807,6 +1841,10 @@ defm auto_import : BoolFOption<"auto-import",
 def offload_EQ : CommaJoined<["--"], "offload=">, Flags<[NoXarchOption]>, Alias<offload_targets_EQ>,
   HelpText<"Specify comma-separated list of offloading target triples (CUDA and HIP only)">;
 
+// FILC: Review
+def version_script_EQ : Joined<["--"], "version-script=">, Group<Link_Group>,
+  HelpText<"Specify a Fil-C version script.">;
+  
 // This flag is only here so we can test the named loops implementation
 // in C++ mode and C language modes before C2y to make sure it actually
 // works; it should be removed once the syntax of the feature is stable
@@ -6668,6 +6706,10 @@ def noprebind : Flag<["-"], "noprebind">;
 def noprofilelib : Flag<["-"], "noprofilelib">;
 def noseglinkedit : Flag<["-"], "noseglinkedit">;
 def nostartfiles : Flag<["-"], "nostartfiles">, Group<Link_Group>;
+//FILC: Review
+// <fil-c>/projects/user-glibc-2.44/Makeconfig
+// <fil-c>/clang/lib/Driver/ToolChains/Gnu.cpp
+def normalcrt : Flag<["-"], "normalcrt">, Group<Link_Group>;
 def startfiles : Flag<["-"], "startfiles">, Group<Link_Group>;
 def nostdinc : Flag<["-"], "nostdinc">,
   Visibility<[ClangOption, CLOption, DXCOption]>, Group<IncludePath_Group>,

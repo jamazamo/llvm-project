@@ -220,10 +220,15 @@ size_t TargetInfo::getMaxBitIntWidth() const {
   return 128;
 }
 
-void TargetInfo::resetDataLayout(StringRef DL) { DataLayoutString = DL.str(); }
+//FILC: Review
+void TargetInfo::resetDataLayout(StringRef, const char *) {
+  llvm_unreachable("YOLO version of resetDataLayout called");
+}
 
-void TargetInfo::resetDataLayout() {
-  DataLayoutString = Triple.computeDataLayout(getABI());
+void TargetInfo::resetDataLayout(StringRef DLBeforeFilC, StringRef DLAfterFilC, const char *ULP) {
+  DataLayoutStringBeforeFilC = DLBeforeFilC.str();
+  DataLayoutStringAfterFilC = DLAfterFilC.str();
+  UserLabelPrefix = ULP;
 }
 
 bool

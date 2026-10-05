@@ -101,8 +101,9 @@ std::string x86::getX86TargetCPU(const Driver &D, const ArgList &Args,
     return Is64Bit ? "x86-64" : "i686";
 
   // Everything else goes to x86-64 in 64-bit mode.
+  //FILC: Review
   if (Is64Bit)
-    return "x86-64";
+    return "x86-64-v2";
 
   switch (Triple.getOS()) {
   case llvm::Triple::NetBSD:

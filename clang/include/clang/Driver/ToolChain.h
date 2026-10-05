@@ -167,6 +167,8 @@ private:
   mutable std::unique_ptr<Tool> Clang;
   mutable std::unique_ptr<Tool> Flang;
   mutable std::unique_ptr<Tool> Assemble;
+  //FILC: Review
+  mutable std::unique_ptr<Tool> SarcasmAs;
   mutable std::unique_ptr<Tool> Link;
   mutable std::unique_ptr<Tool> StaticLibTool;
   mutable std::unique_ptr<Tool> IfsMerge;
@@ -181,6 +183,8 @@ private:
   Tool *getStaticLibTool() const;
   Tool *getIfsMerge() const;
   Tool *getClangAs() const;
+  //FILC: Review
+  Tool *getSarcasmAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadPackager() const;
   Tool *getLinkerWrapper() const;

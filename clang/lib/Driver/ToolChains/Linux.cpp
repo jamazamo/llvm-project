@@ -243,6 +243,10 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
 
   Generic_GCC::PushPPaths(PPaths);
 
+  //FILC: Review
+  if (D.HasOptfil)
+    PPaths.push_back("/opt/fil/bin");
+
   Distro Distro(D.getVFS(), Triple);
 
   if (Distro.IsAlpineLinux() || Triple.isAndroid()) {
@@ -384,6 +388,9 @@ unsigned Linux::GetDefaultDwarfVersion() const {
 }
 
 ToolChain::CXXStdlibType Linux::GetDefaultCXXStdlibType() const {
+  // FILC: Review
+  if ((true))
+    return ToolChain::CST_Libcxx;
   if (getTriple().isAndroid())
     return ToolChain::CST_Libcxx;
   return ToolChain::CST_Libstdcxx;
@@ -566,6 +573,32 @@ void Linux::addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
 std::string Linux::getDynamicLinker(const ArgList &Args) const {
   const llvm::Triple::ArchType Arch = getArch();
   const llvm::Triple &Triple = getTriple();
+  
+  //FILC: Review
+  if (getDriver().HasCosmo) {
+    // Cosmo programs are static; there is no dynamic linker.  (The Gnu.cpp
+    // link job also never emits -dynamic-linker in cosmo mode; this is just
+    // belt and braces so that no caller can leak one into a cosmo link.)
+    return "";
+  }
+
+  if ((true)) {
+    // Check for explicit override flag
+    if (Arg *A = Args.getLastArg(options::OPT_filc_dynamic_linker)) {
+      A->claim();
+      return std::string(A->getValue());
+    }
+    
+    SmallString<128> P;
+    if (getDriver().HasPizfix)
+      P = getDriver().PizfixRoot;
+    else if (getDriver().HasOptfil)
+      P = "/opt/fil";
+    else
+      P = "/";
+    llvm::sys::path::append(P, "lib", "ld-fil1-" + Triple.getArchName().str() + ".so");
+    return std::string(P);
+  }
 
   const Distro Distro(getDriver().getVFS(), Triple);
 
@@ -758,11 +791,112 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
   return "/" + LibDir + "/" + Loader;
 }
 
+//FILC: Review
+void Linux::addClangTargetOptions(
+    const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadKind) const {
+  const Driver &D = getDriver();
+
+  // Cosmopolitan libc keeps its thread information block (the "TIB") in the
+  // x28 register on aarch64, and everything in a cosmo-mode Fil-C process
+  // that can be entered while pizlonated code is on the stack -- the yolo
+  // cosmo layer (libyolocosmo.a), libpizlo, the pizlonated user libc, and
+  // the pizlonated C++ runtimes -- reads that TIB from x28 (see
+  // libc/thread/tls.h and the errno fast path in libc/errno.h).  The
+  // upstream cosmo build enforces this with -ffixed-x28 (see
+  // build/definitions.mk); the Fil-C-compiled parts of the program enforce
+  // it the same way, or the register allocator is free to use x28 as
+  // scratch inside a pizlonated function, and any TIB read that survives
+  // inside it then sees garbage (e.g. libpizlo's pthread_getspecific-based
+  // filc_get_my_thread(), which asserts in filc_pollcheck_slow when a
+  // C++ global ctor allocates).  This mirrors the -ffixed-x18 -ffixed-x28
+  // that the cosmo-mode libpas (libpas/Makefile), pizlonated libc
+  // (projects/usercosmo/filc.mk) and C++ runtime (build_cxx.sh) builds
+  // already use.  x18 is the aarch64 platform register, which the cosmo
+  // build also reserves (Apple Silicon clobbers it).
+  //
+  // Only aarch64 in cosmo mode is affected; every other target (and every
+  // non-cosmo flavor) keeps the default register allocation.
+  if (D.HasCosmo && getTriple().getArch() == llvm::Triple::aarch64) {
+    // The cc1-level spelling of -ffixed-x18/-ffixed-x28.
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+reserve-x18");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+reserve-x28");
+  }
+}
+
 void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
   const Driver &D = getDriver();
   std::string SysRoot = computeSysRoot();
 
+  //FILC: Review
+  if (D.HasPizfix) {
+    {
+      std::string P;
+      if (Arg *A = DriverArgs.getLastArg(options::OPT_filc_stdfil_include)) {
+        A->claim();
+        P = A->getValue();
+      } else {
+        SmallString<128> Path(D.PizfixRoot);
+        llvm::sys::path::append(Path, "stdfil-include");
+        P = std::string(Path);
+      }
+      addSystemInclude(DriverArgs, CC1Args, P);
+    }
+    
+    {
+      std::string P;
+      if (Arg *A = DriverArgs.getLastArg(options::OPT_filc_os_include)) {
+        A->claim();
+        P = A->getValue();
+      } else {
+        SmallString<128> Path(D.PizfixRoot);
+        if (D.HasCosmo && getTriple().getArch() == llvm::Triple::aarch64) {
+          // The kernel headers (os-include's linux/asm/asm-generic) are
+          // per-architecture.  build_yolocosmo.sh installs the aarch64
+          // variant of os-include from the cross toolchain's headers; if it
+          // is missing, fall back to the cross toolchain's directory, which
+          // carries the same tree.
+          llvm::sys::path::append(Path, "os-include-aarch64");
+          if (!llvm::sys::fs::is_directory(Path)) {
+            Path = "/usr/aarch64-linux-gnu/include";
+          }
+        } else {
+          llvm::sys::path::append(Path, "os-include");
+        }
+        P = std::string(Path);
+      }
+      addSystemInclude(DriverArgs, CC1Args, P);
+    }
+    
+    if (!DriverArgs.hasArg(clang::driver::options::OPT_nostdinc)
+        && !DriverArgs.hasArg(options::OPT_nostdlibinc)) {
+      std::string P;
+      if (Arg *A = DriverArgs.getLastArg(options::OPT_filc_include)) {
+        A->claim();
+        P = A->getValue();
+      } else {
+        SmallString<128> Path(D.PizfixRoot);
+        llvm::sys::path::append(Path, "include");
+        P = std::string(Path);
+      }
+      addSystemInclude(DriverArgs, CC1Args, P);
+    }
+  } else if (D.HasOptfil)
+    addSystemInclude(DriverArgs, CC1Args, "/opt/fil/include");
+  else
+    addSystemInclude(DriverArgs, CC1Args, "/usr/include");
+
+  SmallString<128> ResourceDirInclude(D.ResourceDir);
+  llvm::sys::path::append(ResourceDirInclude, "include");
+  if (!DriverArgs.hasArg(clang::driver::options::OPT_nostdinc)
+      && !DriverArgs.hasArg(options::OPT_nobuiltininc))
+    addSystemInclude(DriverArgs, CC1Args, ResourceDirInclude);
+
+  if ((true))
+    return;
   if (DriverArgs.hasArg(options::OPT_nostdinc))
     return;
 
@@ -770,8 +904,9 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   // GCC_INCLUDE_DIR (private headers) in GCC. Note: the include directory
   // contains some files conflicting with system /usr/include. musl systems
   // prefer the /usr/include copies which are more relevant.
-  SmallString<128> ResourceDirInclude(D.ResourceDir);
-  llvm::sys::path::append(ResourceDirInclude, "include");
+  //FILC: Review
+  //SmallString<128> ResourceDirInclude(D.ResourceDir);
+  //llvm::sys::path::append(ResourceDirInclude, "include");
   if (!DriverArgs.hasArg(options::OPT_nobuiltininc) &&
       (!getTriple().isMusl() || DriverArgs.hasArg(options::OPT_nostdlibinc)))
     addSystemInclude(DriverArgs, CC1Args, ResourceDirInclude);

@@ -2954,6 +2954,7 @@ public:
   ///
   /// The cast is not performed in CreateTempAllocaWithoutCast. This is
   /// more efficient if the caller knows that the address will not be exposed.
+  // FILC: Review
   llvm::AllocaInst *CreateTempAlloca(llvm::Type *Ty, const Twine &Name = "tmp",
                                      llvm::Value *ArraySize = nullptr);
 
@@ -2963,7 +2964,8 @@ public:
   RawAddress CreateTempAlloca(llvm::Type *Ty, LangAS UseAddrSpace,
                               CharUnits align, const Twine &Name = "tmp",
                               llvm::Value *ArraySize = nullptr,
-                              RawAddress *Alloca = nullptr);
+                              RawAddress *Alloca = nullptr,
+                              bool HasUnion = false);
 
   /// CreateTempAlloca - This creates a alloca and inserts it into the entry
   /// block. The alloca is casted to default address space if necessary.
@@ -2973,14 +2975,16 @@ public:
   RawAddress CreateTempAlloca(llvm::Type *Ty, CharUnits align,
                               const Twine &Name = "tmp",
                               llvm::Value *ArraySize = nullptr,
-                              RawAddress *Alloca = nullptr) {
+                              RawAddress *Alloca = nullptr,
+                              bool HasUnion = false) {
     return CreateTempAlloca(Ty, LangAS::Default, align, Name, ArraySize,
                             Alloca);
   }
 
   RawAddress CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits align,
                                          const Twine &Name = "tmp",
-                                         llvm::Value *ArraySize = nullptr);
+                                         llvm::Value *ArraySize = nullptr,
+                                         bool HasUnion = false);
 
   /// CreateDefaultAlignedTempAlloca - This creates an alloca with the
   /// default ABI alignment of the given LLVM type.

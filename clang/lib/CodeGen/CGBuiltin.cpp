@@ -334,6 +334,13 @@ Value *MakeBinaryAtomicValue(
 
   llvm::Value *Val = CGF.EmitScalarExpr(E->getArg(1));
   llvm::Type *ValueType = Val->getType();
+
+  // FILC: Review
+  // Exchange pointers as pointers: under Fil-C, a round trip through an
+  // integer atomic drops the pointer's capability.
+  if (Kind == AtomicRMWInst::Xchg && ValueType->isPointerTy())
+    return CGF.Builder.CreateAtomicRMW(Kind, DestAddr, Val, Ordering);
+
   Val = EmitToInt(CGF, Val, T, IntType);
 
   llvm::Value *Result =
@@ -429,8 +436,14 @@ Value *MakeAtomicCmpXchgValue(CodeGenFunction &CGF, const CallExpr *E,
 
   Value *Cmp = CGF.EmitScalarExpr(E->getArg(1));
   llvm::Type *ValueType = Cmp->getType();
-  Cmp = EmitToInt(CGF, Cmp, T, IntType);
-  Value *New = EmitToInt(CGF, CGF.EmitScalarExpr(E->getArg(2)), T, IntType);
+  //FILC: Review
+  Value *New = CGF.EmitScalarExpr(E->getArg(2));
+  // Compare and swap pointers as pointers, keeping their Fil-C capabilities.
+  bool Pointers = ValueType->isPointerTy() && New->getType()->isPointerTy();
+  if (!Pointers) {
+    Cmp = EmitToInt(CGF, Cmp, T, IntType);
+    New = EmitToInt(CGF, New, T, IntType);
+  }
 
   Value *Pair = CGF.Builder.CreateAtomicCmpXchg(
       DestAddr, Cmp, New, SuccessOrdering, FailureOrdering);
@@ -438,6 +451,9 @@ Value *MakeAtomicCmpXchgValue(CodeGenFunction &CGF, const CallExpr *E,
     // Extract boolean success flag and zext it to int.
     return CGF.Builder.CreateZExt(CGF.Builder.CreateExtractValue(Pair, 1),
                                   CGF.ConvertType(E->getType()));
+  //FILC: Review
+  else if (Pointers)
+    return CGF.Builder.CreateExtractValue(Pair, 0);
   else
     // Extract old value and emit it using the same type as compare value.
     return EmitFromInt(CGF, CGF.Builder.CreateExtractValue(Pair, 0), T,
@@ -4892,8 +4908,19 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Value *SizeVal = EmitScalarExpr(E->getArg(2));
     EmitArgCheck(TCK_Store, Dest, E->getArg(0), 0);
     EmitArgCheck(TCK_Load, Src, E->getArg(1), 1);
-    auto *I = Builder.CreateMemCpy(Dest, Src, SizeVal, false);
-    addInstToNewSourceAtom(I, nullptr);
+    //FILC: Review. 
+    // Check what addInstToNewSourceAtom do
+    if (BuiltinID == Builtin::BImemcpy ||
+        BuiltinID == Builtin::BImempcpy) {
+      Builder.CreateCall(
+        CGM.CreateRuntimeFunction(
+          llvm::FunctionType::get(VoidTy, { Int8PtrTy, Int8PtrTy, SizeTy }, false),
+          "zmemmove_builtin"),
+        { Dest.getBasePointer(), Src.getBasePointer(), SizeVal });
+    } else {
+      auto *I = Builder.CreateMemCpy(Dest, Src, SizeVal, false);
+      addInstToNewSourceAtom(I, nullptr);
+    }
     if (BuiltinID == Builtin::BImempcpy ||
         BuiltinID == Builtin::BI__builtin_mempcpy)
       return RValue::get(Builder.CreateInBoundsGEP(
@@ -4979,8 +5006,17 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                   .getQuantity()));
     EmitArgCheck(TCK_Store, Dest, E->getArg(0), 0);
     EmitArgCheck(TCK_Load, Src, E->getArg(1), 1);
-    auto *I = Builder.CreateMemMove(Dest, Src, SizeVal, false);
-    addInstToNewSourceAtom(I, nullptr);
+    //FILC: Review
+    if (BuiltinID == Builtin::BImemmove) {
+      Builder.CreateCall(
+        CGM.CreateRuntimeFunction(
+          llvm::FunctionType::get(VoidTy, { Int8PtrTy, Int8PtrTy, SizeTy }, false),
+          "zmemmove_builtin"),
+        { Dest.getBasePointer(), Src.getBasePointer(), SizeVal });
+    } else {
+      auto *I = Builder.CreateMemMove(Dest, Src, SizeVal, false);
+      addInstToNewSourceAtom(I, nullptr);
+    }
     return RValue::get(Dest, *this);
   }
   case Builtin::BImemset:

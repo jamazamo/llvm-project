@@ -177,7 +177,9 @@ public:
     Ctx = &Context;
     VMContext.reset(new llvm::LLVMContext());
     M.reset(new llvm::Module(MainFileName, *VMContext));
-    M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
+    //FILC: Review
+    M->setDataLayout(Ctx->getTargetInfo().getDataLayoutStringBeforeFilC());
+    M->setDataLayoutAfterFilC(Ctx->getTargetInfo().getDataLayoutStringAfterFilC());
     Builder.reset(new CodeGen::CodeGenModule(
         *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));
 
@@ -255,8 +257,9 @@ public:
     if (Diags.hasErrorOccurred())
       return;
 
-    M->setTargetTriple(Ctx.getTargetInfo().getTriple());
-    M->setDataLayout(Ctx.getTargetInfo().getDataLayoutString());
+    //FILC: Review
+    M->setTargetTriple(Ctx.getTargetInfo().getTriple().getTriple());
+    M->setDataLayout(Ctx.getTargetInfo().getDataLayoutStringBeforeFilC());
 
     // PCH files don't have a signature field in the control block,
     // but LLVM detects DWO CUs by looking for a non-zero DWO id.
@@ -322,13 +325,17 @@ public:
       // Print the IR for the PCH container to the debug output.
       llvm::SmallString<0> Buffer;
       clang::emitBackendOutput(
-          CI, CodeGenOpts, M.get(), BackendAction::Backend_EmitLL, FS,
+          //FILC: Review
+          CI, CodeGenOpts, Ctx.getTargetInfo().getDataLayoutStringAfterFilC(), M.get(),
+          BackendAction::Backend_EmitLL, FS,
           std::make_unique<llvm::raw_svector_ostream>(Buffer));
       llvm::dbgs() << Buffer;
     });
 
     // Use the LLVM backend to emit the pch container.
-    clang::emitBackendOutput(CI, CodeGenOpts, M.get(),
+    clang::emitBackendOutput(CI, CodeGenOpts,
+                             //FILC: Review
+                             Ctx.getTargetInfo().getDataLayoutStringAfterFilC(), M.get(),
                              BackendAction::Backend_EmitObj, FS, std::move(OS));
 
     // Free the memory for the temporary buffer.

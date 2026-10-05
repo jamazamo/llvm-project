@@ -744,6 +744,13 @@ Tool *ToolChain::getClangAs() const {
   return Assemble.get();
 }
 
+//FILC: Review
+Tool *ToolChain::getSarcasmAs() const {
+  if (!SarcasmAs)
+    SarcasmAs.reset(new tools::SarcasmAs(*this));
+  return SarcasmAs.get();
+}
+
 Tool *ToolChain::getLink() const {
   if (!Link)
     Link.reset(buildLinker());
@@ -1274,9 +1281,20 @@ Tool *ToolChain::SelectTool(const JobAction &JA) const {
   if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
   if (getDriver().ShouldUseClangCompiler(JA)) return getClang();
   Action::ActionClass AC = JA.getKind();
-  if (AC == Action::AssembleJobClass && useIntegratedAs() &&
-      !getTriple().isOSAIX())
-    return getClangAs();
+  //FILC: Review
+  if (AC == Action::AssembleJobClass) {
+    // Fil-C: on the targets that sarcasm supports, assembly is assembled by
+    // sarcasm, which rewrites annotated Yolo-C assembly into memory-safe,
+    // Fil-C-linkable assembly. -yolo-assembler opts out of this and retains
+    // the previous behavior.
+    llvm::Triple::ArchType Arch = getTriple().getArch();
+    bool SarcasmTarget =
+        Arch == llvm::Triple::x86_64 || Arch == llvm::Triple::aarch64;
+    if (SarcasmTarget && !Args.hasArg(options::OPT_yolo_assembler))
+      return getSarcasmAs();
+    if (useIntegratedAs() && !getTriple().isOSAIX())
+      return getClangAs();
+  }
   return getTool(AC);
 }
 
@@ -1831,6 +1849,8 @@ void ToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
     CmdArgs.push_back("-lc++");
     if (Args.hasArg(options::OPT_fexperimental_library))
       CmdArgs.push_back("-lc++experimental");
+    //FILC: Review
+    CmdArgs.push_back("-lc++abi");
     break;
 
   case ToolChain::CST_Libstdcxx:

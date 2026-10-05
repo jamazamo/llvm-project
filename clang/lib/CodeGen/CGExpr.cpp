@@ -110,13 +110,15 @@ static llvm::StringRef GetUBSanTrapForHandler(SanitizerHandler ID) {
 RawAddress
 CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
                                              const Twine &Name,
-                                             llvm::Value *ArraySize) {
+                                             llvm::Value *ArraySize,
+                                             bool HasUnion) {
+  //FILC: Review
   if (getLangOpts().EmitLogicalPointer) {
     auto Alloca = Builder.CreateStructuredAlloca(Ty, Name);
     return RawAddress(Alloca, Ty, Align, KnownNonNull);
   }
 
-  auto *Alloca = CreateTempAlloca(Ty, Name, ArraySize);
+  auto *Alloca = CreateTempAlloca(Ty, Name, ArraySize, HasUnion);
   Alloca->setAlignment(Align.getAsAlign());
   return RawAddress(Alloca, Ty, Align, KnownNonNull);
 }
@@ -149,8 +151,10 @@ RawAddress CodeGenFunction::MaybeCastStackAddressSpace(RawAddress Alloca,
 RawAddress CodeGenFunction::CreateTempAlloca(llvm::Type *Ty, LangAS DestLangAS,
                                              CharUnits Align, const Twine &Name,
                                              llvm::Value *ArraySize,
-                                             RawAddress *AllocaAddr) {
-  RawAddress Alloca = CreateTempAllocaWithoutCast(Ty, Align, Name, ArraySize);
+                                             RawAddress *AllocaAddr,
+                                             bool HasUnion) {
+  //FILC: Review
+  RawAddress Alloca = CreateTempAllocaWithoutCast(Ty, Align, Name, ArraySize, HasUnion);
   if (AllocaAddr)
     *AllocaAddr = Alloca;
   return MaybeCastStackAddressSpace(Alloca, DestLangAS, ArraySize);
@@ -161,7 +165,9 @@ RawAddress CodeGenFunction::CreateTempAlloca(llvm::Type *Ty, LangAS DestLangAS,
 /// insertion point of the builder.
 llvm::AllocaInst *CodeGenFunction::CreateTempAlloca(llvm::Type *Ty,
                                                     const Twine &Name,
-                                                    llvm::Value *ArraySize) {
+                                                    llvm::Value *ArraySize,
+                                                    bool HasUnion) {
+//FILC: Review
   llvm::AllocaInst *Alloca;
   if (ArraySize)
     Alloca = Builder.CreateAlloca(Ty, ArraySize, Name);
@@ -171,6 +177,13 @@ llvm::AllocaInst *CodeGenFunction::CreateTempAlloca(llvm::Type *Ty,
                              ArraySize, Name, AllocaInsertPt->getIterator());
   if (SanOpts.Mask & SanitizerKind::Address) {
     Alloca->addAnnotationMetadata({"alloca_name_altered", Name.str()});
+  }
+  //FILC: Review
+  if (HasUnion && (ArraySize || CGM.getDataLayout().getTypeAllocSize(Ty) >= 8)) {
+    Builder.CreateCall(
+      CGM.CreateRuntimeFunction(
+        llvm::FunctionType::get(VoidTy, { Int8PtrTy }, false), "zhas_union"),
+      { Alloca });
   }
   if (Allocas) {
     Allocas->Add(Alloca);
@@ -192,7 +205,8 @@ RawAddress CodeGenFunction::CreateDefaultAlignTempAlloca(llvm::Type *Ty,
 RawAddress CodeGenFunction::CreateIRTempWithoutCast(QualType Ty,
                                                     const Twine &Name) {
   CharUnits Align = getContext().getTypeAlignInChars(Ty);
-  return CreateTempAllocaWithoutCast(ConvertType(Ty), Align, Name, nullptr);
+  //FILC: Review
+  return CreateTempAlloca(ConvertType(Ty), Align, Name, nullptr, nullptr, Ty.hasUnion());
 }
 
 RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, const Twine &Name,
@@ -204,9 +218,10 @@ RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, const Twine &Name,
 RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
                                           const Twine &Name,
                                           RawAddress *Alloca) {
+  //FILC: Review
   RawAddress Result =
       CreateTempAlloca(ConvertTypeForMem(Ty), Ty.getAddressSpace(), Align, Name,
-                       /*ArraySize=*/nullptr, Alloca);
+                       /*ArraySize=*/nullptr, Alloca, Ty.hasUnion());
 
   if (Ty->isConstantMatrixType()) {
     auto *ArrayTy = cast<llvm::ArrayType>(Result.getElementType());
@@ -228,7 +243,8 @@ RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
 RawAddress CodeGenFunction::CreateMemTempWithoutCast(QualType Ty,
                                                      CharUnits Align,
                                                      const Twine &Name) {
-  return CreateTempAllocaWithoutCast(ConvertTypeForMem(Ty), Align, Name);
+  //FILC: Review
+  return CreateTempAllocaWithoutCast(ConvertTypeForMem(Ty), Align, Name, nullptr, Ty.hasUnion());
 }
 
 RawAddress CodeGenFunction::CreateMemTempWithoutCast(QualType Ty,

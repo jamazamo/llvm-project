@@ -197,6 +197,22 @@ std::string CUIDOptions::getCUID(StringRef InputFile,
   }
   return CUID;
 }
+
+//FILC: Review
+// A pizfix tree is a "cosmo" pizfix (cosmopolitan libc flavored Fil-C) if its
+// lib directory contains libyolocosmo.a, which is the cosmo libc archive.
+// The aarch64 flavor of that archive lives in lib-aarch64 (see
+// build_yolocosmo.sh), so both locations are accepted.
+static bool hasCosmoMarker(StringRef PizfixRoot) {
+  SmallString<128> P(PizfixRoot);
+  llvm::sys::path::append(P, "lib", "libyolocosmo.a");
+  if (llvm::sys::fs::is_regular_file(P))
+    return true;
+  SmallString<128> Q(PizfixRoot);
+  llvm::sys::path::append(Q, "lib-aarch64", "libyolocosmo.a");
+  return llvm::sys::fs::is_regular_file(Q);
+}
+
 Driver::Driver(StringRef DriverExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
@@ -216,6 +232,23 @@ Driver::Driver(StringRef DriverExecutable, StringRef TargetTriple,
 
   Name = std::string(llvm::sys::path::filename(DriverExecutable));
   Dir = std::string(llvm::sys::path::parent_path(DriverExecutable));
+
+  //FILC: Review
+  {
+    SmallString<128> P(Dir);
+    llvm::sys::path::append(P, "..", "..", "pizfix");
+    HasPizfix = llvm::sys::fs::is_directory(P);
+    if (HasPizfix)
+      PizfixRoot = std::string(P);
+  }
+  if (HasPizfix)
+    HasCosmo = hasCosmoMarker(PizfixRoot);
+  if (!HasPizfix) {
+    SmallString<128> RealPath;
+    if (!llvm::sys::fs::real_path(Dir, RealPath)
+        && RealPath == "/opt/fil/bin")
+      HasOptfil = true;
+  }
 
   if ((!SysRoot.empty()) && llvm::sys::path::is_relative(SysRoot)) {
     // Prepend InstalledDir if SysRoot is relative
@@ -1567,6 +1600,49 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     if (VFS->setCurrentWorkingDirectory(WD->getValue()))
       Diag(diag::err_drv_unable_to_set_working_directory) << WD->getValue();
 
+  // FILC: Review
+  // Check for Fil-C resource directory override
+  if (Arg *A = Args.getLastArg(options::OPT_filc_resource_dir)) {
+    A->claim();
+    PizfixRoot = A->getValue();
+    HasPizfix = true;  // Trust the user-provided path
+  } else if (Arg *A = Args.getLastArg(options::OPT_filc_crt_path)) {
+    // If any filc flag is set, we're in filc mode
+    A->claim();
+    HasPizfix = true;
+  }
+
+  // Re-probe for the cosmo marker in case the pizfix root came from
+  // --filc-resource-dir (this makes it possible to test a cosmo pizfix tree
+  // without replacing the real one).
+  if (HasPizfix)
+    HasCosmo = hasCosmoMarker(PizfixRoot);
+
+  // --filc-cosmo forces cosmopolitan libc mode.  It still requires a pizfix
+  // tree, since the cosmo CRT objects, linker script, and libraries all live
+  // there.
+  if (Arg *A = Args.getLastArg(options::OPT_filc_cosmo)) {
+    A->claim();
+    if (!HasPizfix)
+      Diag(diag::err_drv_filc_cosmo_requires_pizfix);
+    else
+      HasCosmo = true;
+  }
+
+  // --filc-ape is consumed by the cosmo-mode link job (see
+  // tools::gnutools::Linker::ConstructJob); claim it up front so that
+  // invocations that never reach a cosmo-mode link (like compile-only ones)
+  // do not get an unused-argument warning.  --filc-fat-ape is consumed there
+  // too (it turns a cosmo-mode link into a fat x86_64+aarch64 APE build) and
+  // --filc-no-ape is the internal suppressor that the fat mode's nested
+  // aarch64 link passes so it does not emit an APE of its own; claim both.
+  if (Arg *A = Args.getLastArg(options::OPT_filc_ape))
+    A->claim();
+  if (Arg *A = Args.getLastArg(options::OPT_filc_fat_ape))
+    A->claim();
+  if (Arg *A = Args.getLastArg(options::OPT_filc_no_ape))
+    A->claim();
+
   // Check for missing include directories.
   if (!Diags.isIgnored(diag::warn_missing_include_dirs, SourceLocation())) {
     for (auto IncludeDir : Args.getAllArgValues(options::OPT_I_Group)) {
@@ -1678,8 +1754,11 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       CompilerPath = Split.second;
     }
   }
-  if (const Arg *A = Args.getLastArg(options::OPT__sysroot_EQ))
+  //FILC: Review
+  if (const Arg *A = Args.getLastArg(options::OPT__sysroot_EQ)) {
     SysRoot = A->getValue();
+    //Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << "sysroot";
+  }
   if (const Arg *A = Args.getLastArg(options::OPT__dyld_prefix_EQ))
     DyldPrefix = A->getValue();
 
@@ -4753,6 +4832,13 @@ void Driver::BuildJobs(Compilation &C) const {
   // Claim --driver-mode, --rsp-quoting, it was handled earlier.
   (void)C.getArgs().hasArg(options::OPT_driver_mode);
   (void)C.getArgs().hasArg(options::OPT_rsp_quoting);
+
+  // FILC: Review
+  // Claim -yolo-assembler here. It is consumed by the driver when it selects
+  // the assembler tool (see ToolChain::SelectTool) and by the sarcasm
+  // assembler; it never belongs to any individual cc1 job, so claim it
+  // unconditionally to avoid "argument unused" warnings on any invocation.
+  (void)C.getArgs().hasArg(options::OPT_yolo_assembler);
 
   bool HasAssembleJob = llvm::any_of(C.getJobs(), [](auto &J) {
     // Match ClangAs and other derived assemblers of Tool. ClangAs uses a

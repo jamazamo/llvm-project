@@ -256,6 +256,24 @@
 #define bit_RDPRU       0x00000010
 #define bit_WBNOINVD    0x00000200
 
+//FILC: Review
+#ifdef __PIZLONATOR_WAS_HERE__
+#ifdef __cplusplus
+extern "C" {
+#endif
+void zcpuid(unsigned int leaf,
+            unsigned int* eax, unsigned int* ebx, unsigned int* ecx, unsigned int* edx);
+void zcpuid_count(unsigned int leaf, unsigned int count,
+                  unsigned int* eax, unsigned int* ebx, unsigned int* ecx, unsigned int* edx);
+#ifdef __cplusplus
+}
+#endif
+
+#define __cpuid(__leaf, __eax, __ebx, __ecx, __edx) \
+    zcpuid((__leaf), (unsigned int*)&(__eax), (unsigned int*)&(__ebx), (unsigned int*)&(__ecx), (unsigned int*)&(__edx))
+#define __cpuid_count(__leaf, __count, __eax, __ebx, __ecx, __edx) \
+    zcpuid_count((__leaf), (__count), (unsigned int*)&(__eax), (unsigned int*)&(__ebx), (unsigned int*)&(__ecx), (unsigned int*)&(__edx))
+#else
 #ifdef __i386__
 #define __cpuid(__leaf, __eax, __ebx, __ecx, __edx) \
     __asm("cpuid" : "=a"(__eax), "=b" (__ebx), "=c"(__ecx), "=d"(__edx) \
@@ -280,6 +298,7 @@
         : "=a"(__eax), "=r"(__ebx), "=c"(__ecx), "=d"(__edx)                   \
         : "0"(__leaf), "2"(__count))
 #endif
+#endif /* __PIZLONATOR_WAS_HERE__ */
 
 /// Queries the processor to determine the highest supported \c CPUID leaf.
 /// This intrinsic is only available on x86 and x64.

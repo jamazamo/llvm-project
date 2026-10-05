@@ -4583,6 +4583,15 @@ public:
     RecordDeclBits.HasNonTrivialToPrimitiveCopyCUnion = V;
   }
 
+//FILC: Review
+  bool hasUnion() const {
+    return RecordDeclBits.HasUnion;
+  }
+
+  void setHasUnion(bool V) {
+    RecordDeclBits.HasUnion = V;
+  }
+
   bool hasUninitializedExplicitInitFields() const {
     return RecordDeclBits.HasUninitializedExplicitInitFields;
   }

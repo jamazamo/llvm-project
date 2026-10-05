@@ -250,7 +250,9 @@ protected:
   bool HasStrictFP;
 
   unsigned char MaxAtomicPromoteWidth, MaxAtomicInlineWidth;
-  std::string DataLayoutString;
+  //FILC: Review
+  std::string DataLayoutStringBeforeFilC;
+  std::string DataLayoutStringAfterFilC;
   const char *UserLabelPrefix;
   const char *MCountName;
   unsigned char RegParmMax, SSERegParmMax;
@@ -307,6 +309,9 @@ protected:
 
   /// Set the data layout based on current triple and ABI.
   void resetDataLayout();
+  //FILC: Review
+  void resetDataLayout(StringRef DLBeforeFilC, StringRef DLAfterFilC,
+                       const char *UserLabelPrefix = "");
 
   // Target features that are read-only and should not be disabled/enabled
   // by command line options. Such features are for emitting predefined
@@ -1320,9 +1325,14 @@ public:
   /// compatible processor.
   virtual bool isProcessorName(StringRef Name) const { return false; }
 
-  const char *getDataLayoutString() const {
-    assert(!DataLayoutString.empty() && "Uninitialized DataLayout!");
-    return DataLayoutString.c_str();
+//FILC: Review
+  const char *getDataLayoutStringBeforeFilC() const {
+    assert(!DataLayoutStringBeforeFilC.empty() && "Uninitialized DataLayoutBeforeFilC!");
+    return DataLayoutStringBeforeFilC.c_str();
+  }
+  const char *getDataLayoutStringAfterFilC() const {
+    assert(!DataLayoutStringAfterFilC.empty() && "Uninitialized DataLayoutBeforeFilC!");
+    return DataLayoutStringAfterFilC.c_str();
   }
 
   struct GCCRegAlias {

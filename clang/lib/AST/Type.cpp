@@ -3165,6 +3165,11 @@ bool QualType::hasNonTrivialToPrimitiveCopyCUnion(const RecordDecl *RD) {
   return RD->hasNonTrivialToPrimitiveCopyCUnion();
 }
 
+//FILC: Review
+bool QualType::hasUnion(const RecordDecl *RD) {
+  return RD->hasUnion();
+}
+
 bool QualType::isWebAssemblyReferenceType() const {
   return isWebAssemblyExternrefType() || isWebAssemblyFuncrefType();
 }

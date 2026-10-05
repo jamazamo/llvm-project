@@ -32,7 +32,8 @@ public:
                     SourceManager &SrcMgr, Preprocessor &PP)
       : Ctx(Ctx), SrcMgr(SrcMgr), PP(PP),
         MC(ItaniumMangleContext::create(ASTCtx, ASTCtx.getDiagnostics())),
-        Layout(ASTCtx.getTargetInfo().getDataLayoutString()) {}
+		//FILC: Review
+        Layout(ASTCtx.getTargetInfo().getDataLayoutStringBeforeFilC()) {}
   void HandleTranslationUnit(ASTContext &ASTCtx) override;
   bool shouldVisitTemplateInstantiations() const { return true; }
 

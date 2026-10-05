@@ -159,7 +159,9 @@ namespace {
       Ctx = &Context;
 
       M->setTargetTriple(Ctx->getTargetInfo().getTriple());
-      M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
+      //FILC: Review
+      M->setDataLayout(Ctx->getTargetInfo().getDataLayoutStringBeforeFilC());
+      M->setDataLayoutAfterFilC(Ctx->getTargetInfo().getDataLayoutStringAfterFilC());
       const auto &SDKVersion = Ctx->getTargetInfo().getSDKVersion();
       if (!SDKVersion.empty())
         M->setSDKVersion(SDKVersion);

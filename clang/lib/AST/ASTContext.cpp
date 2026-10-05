@@ -13571,7 +13571,10 @@ VTableContextBase *ASTContext::getVTableContext() {
     if (ABI.isMicrosoft())
       VTContext.reset(new MicrosoftVTableContext(*this));
     else {
-      VTContext.reset(new ItaniumVTableContext(*this));
+	  //FILC: Review. Clean merge
+	  // What do the other options do?
+      auto ComponentLayout = ItaniumVTableContext::Pointer;
+      VTContext.reset(new ItaniumVTableContext(*this, ComponentLayout));
     }
   }
   return VTContext.get();

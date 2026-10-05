@@ -1478,7 +1478,8 @@ class DeclContext {
   friend class ASTWriter;
 
 protected:
-  enum { NumOdrHashBits = 25 };
+// FILC: Review
+  enum { NumOdrHashBits = 24 };
 
   // We use uint64_t in the bit-fields below since some bit-fields
   // cross the unsigned boundary and this breaks the packing.
@@ -1693,6 +1694,9 @@ protected:
     uint64_t HasNonTrivialToPrimitiveDestructCUnion : 1;
     LLVM_PREFERRED_TYPE(bool)
     uint64_t HasNonTrivialToPrimitiveCopyCUnion : 1;
+	//FILC: Review
+    LLVM_PREFERRED_TYPE(bool)
+    uint64_t HasUnion : 1;
 
     /// True if any field is marked as requiring explicit initialization with
     /// [[clang::require_explicit_initialization]].

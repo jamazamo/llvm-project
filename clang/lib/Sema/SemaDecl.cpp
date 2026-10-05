@@ -20187,6 +20187,22 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     }
   }
 
+  if (CXXRecord) {
+    // Deal with the possibility that the bases have unions.
+    for (const CXXBaseSpecifier &BaseSpec : CXXRecord->bases()) {
+      if (const CXXRecordDecl *B = BaseSpec.getType()->getAsCXXRecordDecl()) {
+        if (B->hasUnion())
+          Record->setHasUnion(true);
+      }
+    }
+    for (const CXXBaseSpecifier &BaseSpec : CXXRecord->vbases()) {
+      if (const CXXRecordDecl *B = BaseSpec.getType()->getAsCXXRecordDecl()) {
+        if (B->hasUnion())
+          Record->setHasUnion(true);
+      }
+    }
+  }
+
   // Verify that all the fields are okay.
   SmallVector<FieldDecl*, 32> RecFields;
   const FieldDecl *PreviousField = nullptr;
@@ -20201,6 +20217,9 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
       // Remember all fields written by the user.
       RecFields.push_back(FD);
     }
+
+    if (FD->getType().hasUnion())
+      Record->setHasUnion(true);
 
     // If the field is already invalid for some reason, don't emit more
     // diagnostics about it.
