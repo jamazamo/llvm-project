@@ -473,6 +473,8 @@ public:
     return hasUnstableRepresentation(AddrSpace);
   }
 
+  bool isFilC() const { return isNonIntegralAddressSpace(0); }
+
   bool isNonIntegralPointerType(PointerType *PT) const {
     return isNonIntegralAddressSpace(PT->getAddressSpace());
   }

@@ -2524,6 +2524,12 @@ class ExtractValueInst : public UnaryInstruction {
 
   ExtractValueInst(const ExtractValueInst &EVI);
 
+  //FILC: Review
+  inline ExtractValueInst(Type* Ty, Value *Agg,
+                          ArrayRef<unsigned> Idxs,
+                          const Twine &NameStr,
+                          InsertPosition InsertBefore);
+    
   /// Constructors - Create a extractvalue instruction with a base aggregate
   /// value and a list of indices. The first and second ctor can optionally
   /// insert before an existing instruction, the third appends the new
@@ -2540,6 +2546,15 @@ protected:
   LLVM_ABI ExtractValueInst *cloneImpl() const;
 
 public:
+  //FILC: Review
+  static ExtractValueInst *Create(Type* Ty, Value *Agg,
+                                  ArrayRef<unsigned> Idxs,
+                                  const Twine &NameStr = "",
+                                  InsertPosition InsertBefore = nullptr) {
+    return new
+      ExtractValueInst(Ty, Agg, Idxs, NameStr, InsertBefore);
+  }
+
   static ExtractValueInst *Create(Value *Agg, ArrayRef<unsigned> Idxs,
                                   const Twine &NameStr = "",
                                   InsertPosition InsertBefore = nullptr) {
@@ -2591,6 +2606,16 @@ public:
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
+
+//FILC: Review
+ExtractValueInst::ExtractValueInst(Type* Ty,
+                                   Value *Agg,
+                                   ArrayRef<unsigned> Idxs,
+                                   const Twine &NameStr,
+                                   InsertPosition InsertBefore)
+  : UnaryInstruction(Ty, ExtractValue, Agg, InsertBefore) {
+  init(Idxs, NameStr);
+}
 
 ExtractValueInst::ExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
                                    const Twine &NameStr,

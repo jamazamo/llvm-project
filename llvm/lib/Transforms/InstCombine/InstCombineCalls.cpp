@@ -130,6 +130,9 @@ Instruction *InstCombinerImpl::SimplifyAnyMemTransfer(AnyMemTransferInst *MI) {
   // that the store must be storing the constant value (else the memory
   // wouldn't be constant), and this must be a noop.
   if (!isModSet(AA->getModRefInfoMask(MI->getDest()))) {
+    //FILC: Review
+    if (DL.isFilC())
+      return nullptr;
     // Set the size of the copy to 0, it will be deleted on the next iteration.
     MI->setLength((uint64_t)0);
     return MI;
@@ -157,6 +160,10 @@ Instruction *InstCombinerImpl::SimplifyAnyMemTransfer(AnyMemTransferInst *MI) {
 
   if (Size > 8 || (Size&(Size-1)))
     return nullptr;  // If not 1/2/4/8 bytes, exit.
+
+  //FILC: Review
+  if (DL.isNonIntegralAddressSpace(0) && Size >= DL.getPointerSize(0))
+    return nullptr; // May be copying a nonintegral pointer, exit.
 
   // If it is an atomic and alignment is less than the size then we will
   // introduce the unaligned memory access which will be later transformed
@@ -1361,6 +1368,10 @@ Instruction *InstCombinerImpl::matchSAddSubSat(IntrinsicInst &MinMax1) {
 /// of constants.
 static Instruction *foldClampRangeOfTwo(IntrinsicInst *II,
                                         InstCombiner::BuilderTy &Builder) {
+  //FILC: Review
+  if(true)
+    return nullptr;
+  else {
   Value *I0 = II->getArgOperand(0), *I1 = II->getArgOperand(1);
   Value *X;
   const APInt *C0, *C1;
@@ -1395,6 +1406,7 @@ static Instruction *foldClampRangeOfTwo(IntrinsicInst *II,
   // min (max X, 42), 43 --> X < 43 ? 42 : 43
   Value *Cmp = Builder.CreateICmp(Pred, X, I1);
   return SelectInst::Create(Cmp, ConstantInt::get(II->getType(), *C0), I1);
+  }
 }
 
 /// If this min/max has a constant operand and an operand that is a matching
@@ -2551,20 +2563,21 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   }
   case Intrinsic::bitreverse: {
     Value *IIOperand = II->getArgOperand(0);
+    //FILC: Review
     // bitrev (zext i1 X to ?) --> X ? SignBitC : 0
-    Value *X;
-    if (match(IIOperand, m_ZExt(m_Value(X))) &&
-        X->getType()->isIntOrIntVectorTy(1)) {
-      Type *Ty = II->getType();
-      APInt SignBit = APInt::getSignMask(Ty->getScalarSizeInBits());
-      SelectInst *SI = SelectInst::Create(X, ConstantInt::get(Ty, SignBit),
-                                          ConstantInt::getNullValue(Ty));
-      // Mark the branch weights explicitly unknown as in the general case we
-      // cannot infer the probability of the condition without additional value
-      // profiling.
-      setExplicitlyUnknownBranchWeightsIfProfiled(*SI, DEBUG_TYPE, &F);
-      return SI;
-    }
+    // Value *X;
+    // if (match(IIOperand, m_ZExt(m_Value(X))) &&
+    //     X->getType()->isIntOrIntVectorTy(1)) {
+    //   Type *Ty = II->getType();
+    //   APInt SignBit = APInt::getSignMask(Ty->getScalarSizeInBits());
+    //   SelectInst *SI = SelectInst::Create(X, ConstantInt::get(Ty, SignBit),
+    //                                       ConstantInt::getNullValue(Ty));
+    //   // Mark the branch weights explicitly unknown as in the general case we
+    //   // cannot infer the probability of the condition without additional value
+    //   // profiling.
+    //   setExplicitlyUnknownBranchWeightsIfProfiled(*SI, DEBUG_TYPE, &F);
+    //   return SI;
+    // }
 
     if (Instruction *crossLogicOpFold =
         foldBitOrderCrossLogicOp<Intrinsic::bitreverse>(IIOperand, Builder))

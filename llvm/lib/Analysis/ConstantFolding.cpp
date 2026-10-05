@@ -702,6 +702,11 @@ Constant *FoldReinterpretLoadFromConst(Constant *C, Type *LoadTy,
         !LoadTy->isByteTy() && !LoadTy->isVectorTy())
       return nullptr;
 
+    //FILC: Review
+    PointerType* PtrTy = dyn_cast<PointerType>(LoadTy);
+    if (PtrTy && DL.isNonIntegralPointerType(PtrTy))
+      return nullptr;
+
     Type *MapTy = Type::getIntNTy(C->getContext(),
                                   DL.getTypeSizeInBits(LoadTy).getFixedValue());
     if (Constant *Res =
@@ -852,8 +857,12 @@ Constant *llvm::ConstantFoldLoadFromConst(Constant *C, Type *Ty,
   // Explicitly check for out-of-bounds access, so we return poison even if the
   // constant is a uniform value.
   TypeSize Size = DL.getTypeAllocSize(C->getType());
-  if (!Size.isScalable() && Offset.sge(Size.getFixedValue()))
+  //FILC: Review
+  if (!Size.isScalable() && Offset.sge(Size.getFixedValue())) {
+    if (DL.isFilC())
+      return nullptr;
     return PoisonValue::get(Ty);
+  }
 
   // Try an offset-independent fold of a uniform value.
   if (Constant *Result = ConstantFoldLoadFromUniformValue(C, Ty, DL))

@@ -5387,8 +5387,10 @@ static Value *simplifyGEPInst(Type *SrcTy, Value *Ptr,
     }
   }
 
+  //FILC: Review
   if (!IsScalableVec && Q.DL.getTypeAllocSize(LastType) == 1 &&
-      all_of(Indices.drop_back(1), match_fn(m_Zero()))) {
+      all_of(Indices.drop_back(1), match_fn(m_Zero())) &&
+      !Q.DL.isNonIntegralPointerType(Ptr->getType())) {
     unsigned IdxWidth =
         Q.DL.getIndexSizeInBits(Ptr->getType()->getPointerAddressSpace());
     if (Q.DL.getTypeSizeInBits(Indices.back()->getType()) == IdxWidth) {

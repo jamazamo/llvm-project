@@ -779,10 +779,11 @@ void CallInst::init(FunctionType *FTy, Value *Func, ArrayRef<Value *> Args,
           (FTy->isVarArg() && Args.size() > FTy->getNumParams())) &&
          "Calling a function with bad signature!");
 
-  for (unsigned i = 0; i != Args.size(); ++i)
-    assert((i >= FTy->getNumParams() ||
-            FTy->getParamType(i) == Args[i]->getType()) &&
-           "Calling a function with a bad signature!");
+  //FILC: Review
+  //for (unsigned i = 0; i != Args.size(); ++i)
+  //  assert((i >= FTy->getNumParams() ||
+  //          FTy->getParamType(i) == Args[i]->getType()) &&
+  //         "Calling a function with a bad signature!");
 #endif
 
   // Set operands in order of their index to match use-list-order
@@ -2562,8 +2563,9 @@ void InsertValueInst::init(Value *Agg, Value *Val, ArrayRef<unsigned> Idxs,
   // present need to support it.
   assert(!Idxs.empty() && "InsertValueInst must have at least one index");
 
-  assert(ExtractValueInst::getIndexedType(Agg->getType(), Idxs) ==
-         Val->getType() && "Inserted value must match indexed type!");
+  //FILC: Review
+  //assert(ExtractValueInst::getIndexedType(Agg->getType(), Idxs) ==
+  //       Val->getType() && "Inserted value must match indexed type!");
   Op<0>() = Agg;
   Op<1>() = Val;
 
@@ -2915,10 +2917,14 @@ bool CastInst::isNoopCast(Instruction::CastOps Opcode,
     case Instruction::PtrToAddr:
     case Instruction::PtrToInt:
       return DL.getIntPtrType(SrcTy)->getScalarSizeInBits() ==
-             DestTy->getScalarSizeInBits();
+             DestTy->getScalarSizeInBits() &&
+             //FILC: Review
+             !DL.isNonIntegralPointerType(SrcTy);
     case Instruction::IntToPtr:
       return DL.getIntPtrType(DestTy)->getScalarSizeInBits() ==
-             SrcTy->getScalarSizeInBits();
+             SrcTy->getScalarSizeInBits() &&
+             //FILC: Review
+             !DL.isNonIntegralPointerType(DestTy);
   }
 }
 

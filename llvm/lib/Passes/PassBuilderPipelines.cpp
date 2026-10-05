@@ -513,8 +513,8 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
-
-  FPM.addPass(LibCallsShrinkWrapPass());
+  //FILC: Review
+  //FPM.addPass(LibCallsShrinkWrapPass());
 
   invokePeepholeEPCallbacks(FPM, Level);
 
@@ -525,7 +525,8 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   // basic mathematical properties. For example, this will form (nearly)
   // minimal multiplication trees.
   FPM.addPass(ReassociatePass());
-
+  //FILC: Review
+  if ((false)) {
   // Add the primary loop simplification pipeline.
   // FIXME: Currently this is split into two loop pass pipelines because we run
   // some function passes in between them. These can and should be removed
@@ -590,6 +591,7 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   // *All* loop passes must preserve it, in order to be able to use it.
   FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
                                               /*UseMemorySSA=*/false));
+  }
 
   // Delete small array after loop unroll.
   FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
@@ -664,7 +666,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   }
 
   // Speculative execution if the target has divergent branches; otherwise nop.
-  FPM.addPass(SpeculativeExecutionPass(/* OnlyIfDivergentTarget =*/true));
+  //FILC: Review
+  //FPM.addPass(SpeculativeExecutionPass(/* OnlyIfDivergentTarget =*/true));
 
   // Optimize based on known information about branches, and cleanup afterward.
   FPM.addPass(JumpThreadingPass());
@@ -678,14 +681,16 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
   FPM.addPass(AggressiveInstCombinePass());
-  FPM.addPass(LibCallsShrinkWrapPass());
+  //FILC: Review
+  // FPM.addPass(LibCallsShrinkWrapPass());
 
   invokePeepholeEPCallbacks(FPM, Level);
 
   // For PGO use pipeline, try to optimize memory intrinsics such as memcpy
   // using the size value profile. Don't perform this when optimizing for size.
-  if (PGOOpt && PGOOpt->Action == PGOOptions::IRUse)
-    FPM.addPass(PGOMemOPSizeOpt());
+  //FILC: Review
+  // if (PGOOpt && PGOOpt->Action == PGOOptions::IRUse)
+  //   FPM.addPass(PGOMemOPSizeOpt());
 
   FPM.addPass(TailCallElimPass(/*UpdateFunctionEntryCount=*/
                                isInstrumentedPGOUse()));
@@ -700,6 +705,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   if (EnableConstraintElimination)
     FPM.addPass(ConstraintEliminationPass());
 
+  //FILC: Review
+  if ((false)) {
   // Add the primary loop simplification pipeline.
   // FIXME: Currently this is split into two loop pass pipelines because we run
   // some function passes in between them. These can and should be removed
@@ -773,6 +780,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // *All* loop passes must preserve it, in order to be able to use it.
   FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
                                               /*UseMemorySSA=*/false));
+  }
 
   // Delete small array after loop unroll.
   FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
@@ -822,10 +830,11 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(DSEPass());
   FPM.addPass(MoveAutoInitPass());
 
-  FPM.addPass(createFunctionToLoopPassAdaptor(
-      LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
-               /*AllowSpeculation=*/true),
-      /*UseMemorySSA=*/true));
+  //FILC: Review
+  //FPM.addPass(createFunctionToLoopPassAdaptor(
+  //    LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+  //             /*AllowSpeculation=*/true),
+  //    /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/false));
 
   FPM.addPass(CoroElidePass());
 
@@ -1650,7 +1659,8 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // from the TargetLibraryInfo.
   OptimizePM.addPass(InjectTLIMappings());
 
-  addVectorPasses(Level, OptimizePM, LTOPhase);
+  // FILC: Review
+  // addVectorPasses(Level, OptimizePM, LTOPhase);
 
   invokeVectorizerEndEPCallbacks(OptimizePM, Level);
 
@@ -2334,7 +2344,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   MainFPM.addPass(LoopDistributePass());
 
-  addVectorPasses(Level, MainFPM, ThinOrFullLTOPhase::FullLTOPostLink);
+  //FILC: Review
+  //addVectorPasses(Level, MainFPM, ThinOrFullLTOPhase::FullLTOPostLink);
 
   invokeVectorizerEndEPCallbacks(MainFPM, Level);
 

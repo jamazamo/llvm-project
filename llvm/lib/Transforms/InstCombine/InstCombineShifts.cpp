@@ -1369,7 +1369,8 @@ Instruction *InstCombinerImpl::visitShl(BinaryOperator &I) {
       return BinaryOperator::CreateMul(X, Builder.CreateShl(C2, C1));
 
     // shl (zext i1 X), C1 --> select (X, 1 << C1, 0)
-    if (match(Op0, m_ZExt(m_Value(X))) && X->getType()->isIntOrIntVectorTy(1)) {
+    //FILC: Review
+    if (false && match(Op0, m_ZExt(m_Value(X))) && X->getType()->isIntOrIntVectorTy(1)) {
       auto *NewC = Builder.CreateShl(ConstantInt::get(Ty, 1), C1);
       return createSelectInstWithUnknownProfile(X, NewC,
                                                 ConstantInt::getNullValue(Ty));
@@ -1578,7 +1579,8 @@ Instruction *InstCombinerImpl::visitLShr(BinaryOperator &I) {
     if (match(Op0, m_SExt(m_Value(X)))) {
       unsigned SrcTyBitWidth = X->getType()->getScalarSizeInBits();
       // lshr (sext i1 X to iN), C --> select (X, -1 >> C, 0)
-      if (SrcTyBitWidth == 1) {
+      //FILC: Review
+      if (false && SrcTyBitWidth == 1) {
         auto *NewC = ConstantInt::get(
             Ty, APInt::getLowBitsSet(BitWidth, BitWidth - ShAmtC));
         return SelectInst::Create(X, NewC, ConstantInt::getNullValue(Ty));

@@ -101,6 +101,9 @@ using namespace llvm;
 
 #define DEBUG_TYPE "sroa"
 
+//FILC: Review
+static constexpr bool verbose = false;
+
 STATISTIC(NumAllocasAnalyzed, "Number of allocas analyzed for replacement");
 STATISTIC(NumAllocaPartitions, "Number of alloca partitions formed");
 STATISTIC(MaxPartitionsPerAlloca, "Maximum number of partitions per alloca");
@@ -838,11 +841,15 @@ class AllocaSlices::partition_iterator
   ///
   /// Requires that the iterator not be at the end of the slices.
   void advance() {
+    if (verbose)
+      errs() << "Advancing partition_iterator.\n";
     assert((P.SI != SE || !P.SplitTails.empty()) &&
            "Cannot advance past the end of the slices!");
 
     // Clear out any split uses which have ended.
     if (!P.SplitTails.empty()) {
+      if (verbose)
+        errs() << "SplitTails not empty.\n";
       if (P.EndOffset >= MaxSplitSliceEndOffset) {
         // If we've finished all splits, this is easy.
         P.SplitTails.clear();
@@ -869,6 +876,8 @@ class AllocaSlices::partition_iterator
     // If P.SI is already at the end, then we've cleared the split tail and
     // now have an end iterator.
     if (P.SI == SE) {
+      if (verbose)
+        errs() << "End!\n";
       assert(P.SplitTails.empty() && "Failed to clear the split slices!");
       return;
     }
@@ -876,14 +885,23 @@ class AllocaSlices::partition_iterator
     // If we had a non-empty partition previously, set up the state for
     // subsequent partitions.
     if (P.SI != P.SJ) {
+      if (verbose) {
+        errs() << "Had nonempty partition: BeginOffset = " << P.BeginOffset << ", EndOffset = "
+               << P.EndOffset << ".\n";
+      }
       // Accumulate all the splittable slices which started in the old
       // partition into the split list.
-      for (Slice &S : P)
+      for (Slice &S : P) {
+        if (verbose) {
+          errs() << "    Slice: BeginOffset = " << S.beginOffset() << ", EndOffset = "
+                 << S.endOffset() << "\n";
+        }
         if (S.isSplittable() && S.endOffset() > P.EndOffset) {
           P.SplitTails.push_back(&S);
           MaxSplitSliceEndOffset =
               std::max(S.endOffset(), MaxSplitSliceEndOffset);
         }
+      }
 
       // Start from the end of the previous partition.
       P.SI = P.SJ;
@@ -892,6 +910,10 @@ class AllocaSlices::partition_iterator
       if (P.SI == SE) {
         P.BeginOffset = P.EndOffset;
         P.EndOffset = MaxSplitSliceEndOffset;
+        if (verbose) {
+          errs() << "At end, BeginOffset = " << P.BeginOffset << ", EndOffset = " << P.EndOffset
+                 << "\n";
+        }
         return;
       }
 
@@ -902,6 +924,10 @@ class AllocaSlices::partition_iterator
           !P.SI->isSplittable()) {
         P.BeginOffset = P.EndOffset;
         P.EndOffset = P.SI->beginOffset();
+        if (verbose) {
+          errs() << "WTF, BeginOffset = " << P.BeginOffset << ", EndOffset = " << P.EndOffset
+                 << "\n";
+        }
         return;
       }
     }
@@ -913,11 +939,15 @@ class AllocaSlices::partition_iterator
     // at the prior end offset.
     P.BeginOffset = P.SplitTails.empty() ? P.SI->beginOffset() : P.EndOffset;
     P.EndOffset = P.SI->endOffset();
+    if (verbose)
+      errs() << "BeginOffset = " << P.BeginOffset << ", EndOffset = " << P.EndOffset << "\n";
     ++P.SJ;
 
     // There are two strategies to form a partition based on whether the
     // partition starts with an unsplittable slice or a splittable slice.
     if (!P.SI->isSplittable()) {
+      if (verbose)
+        errs() << "Not splittable!\n";
       // When we're forming an unsplittable region, it must always start at
       // the first slice and will extend through its end.
       assert(P.BeginOffset == P.SI->beginOffset());
@@ -929,6 +959,9 @@ class AllocaSlices::partition_iterator
           P.EndOffset = std::max(P.EndOffset, P.SJ->endOffset());
         ++P.SJ;
       }
+
+      if (verbose)
+        errs() << "Not splittable EndOffset = " << P.EndOffset << "\n";
 
       // We have a partition across a set of overlapping unsplittable
       // partitions.
@@ -947,6 +980,9 @@ class AllocaSlices::partition_iterator
       ++P.SJ;
     }
 
+    if (verbose)
+      errs() << "(1) EndOffset = " << P.EndOffset << "\n";
+
     // Back upiP.EndOffset if we ended the span early when encountering an
     // unsplittable slice. This synthesizes the early end offset of
     // a partition spanning only splittable slices.
@@ -954,6 +990,9 @@ class AllocaSlices::partition_iterator
       assert(!P.SJ->isSplittable());
       P.EndOffset = P.SJ->beginOffset();
     }
+
+    if (verbose)
+      errs() << "(2) EndOffset = " << P.EndOffset << "\n";
   }
 
 public:
@@ -993,6 +1032,20 @@ public:
 /// partitions to cover regions of the alloca only accessed via split
 /// slices.
 iterator_range<AllocaSlices::partition_iterator> AllocaSlices::partitions() {
+  if (verbose) {
+    errs() << "Iterating partitions of " << AI << "\n";
+    errs() << "Slices:\n";
+    for (Slice S : Slices) {
+      errs() << "    BeginOffset = " << S.beginOffset() << ", EndOffset = " << S.endOffset();
+      if (S.getUse() && S.getUse()->getUser())
+        errs() << ", User = " << *S.getUse()->getUser();
+      else if (S.getUse())
+        errs() << ", Null Use";
+      else
+        errs() << ", No Use";
+      errs() << ", isSplittable = " << S.isSplittable() << "\n";
+    }
+  }
   return make_range(partition_iterator(begin(), end()),
                     partition_iterator(end(), end()));
 }
@@ -1059,6 +1112,9 @@ private:
                         << AllocSize << " byte alloca:\n"
                         << "    alloca: " << AS.AI << "\n"
                         << "       use: " << I << "\n");
+      //FILC: Review
+      if (Size && I.getModule()->getDataLayout().isFilC())
+        return PI.setAborted(&I);
       return markAsDead(I);
     }
 
@@ -1079,6 +1135,9 @@ private:
                         << "    alloca: " << AS.AI << "\n"
                         << "       use: " << I << "\n");
       EndOffset = AllocSize;
+      //FILC: Review
+      if (I.getModule()->getDataLayout().isFilC())
+        PI.setAborted(&I);
     }
 
     AS.Slices.push_back(Slice(BeginOffset, EndOffset, U, IsSplittable));
@@ -1169,6 +1228,9 @@ private:
                         << AllocSize << " byte alloca:\n"
                         << "    alloca: " << AS.AI << "\n"
                         << "       use: " << SI << "\n");
+      //FILC: Review
+      if (SI.getModule()->getDataLayout().isFilC())
+        return PI.setAborted(&SI);
       return markAsDead(SI);
     }
 
@@ -1181,9 +1243,13 @@ private:
     assert(II.getRawDest() == *U && "Pointer use is not the destination?");
     ConstantInt *Length = dyn_cast<ConstantInt>(II.getLength());
     if ((Length && Length->getValue() == 0) ||
-        (IsOffsetKnown && Offset.uge(AllocSize)))
+        (IsOffsetKnown && Offset.uge(AllocSize))) {
       // Zero-length mem transfer intrinsics can be ignored entirely.
+      //FILC: Review
+      if (Length && II.getModule()->getDataLayout().isFilC())
+        return PI.setAborted(&II);
       return markAsDead(II);
+    }
 
     if (!IsOffsetKnown)
       return PI.setAborted(&II);
@@ -1217,6 +1283,9 @@ private:
       auto MTPI = MemTransferSliceMap.find(&II);
       if (MTPI != MemTransferSliceMap.end())
         AS.Slices[MTPI->second].kill();
+      //FILC: Review
+      if (II.getModule()->getDataLayout().isFilC())
+        return PI.setAborted(&II);
       return markAsDead(II);
     }
 
@@ -1388,6 +1457,9 @@ private:
     // FIXME: This should instead be escaped in the event we're instrumenting
     // for address sanitization.
     if (Offset.uge(AllocSize)) {
+      //FILC: Review
+      if (I.getModule()->getDataLayout().isFilC())
+        return PI.setAborted(&I);
       AS.DeadOperands.push_back(U);
       return;
     }
@@ -2852,6 +2924,10 @@ class AllocaSliceRewriter : public InstVisitor<AllocaSliceRewriter, bool> {
   // original alloca.
   uint64_t NewBeginOffset = 0, NewEndOffset = 0;
 
+  //FILC: Review
+  // Fil-C Hack!
+  uint64_t Skew;
+
   uint64_t SliceSize = 0;
   bool IsSplittable = false;
   bool IsSplit = false;
@@ -2877,16 +2953,19 @@ class AllocaSliceRewriter : public InstVisitor<AllocaSliceRewriter, bool> {
   }
 
 public:
+  //FILC: Review: Swek hack
   AllocaSliceRewriter(const DataLayout &DL, AllocaSlices &AS, SROA &Pass,
                       AllocaInst &OldAI, AllocaInst &NewAI, Type *NewAllocaTy,
                       uint64_t NewAllocaBeginOffset,
                       uint64_t NewAllocaEndOffset, bool IsIntegerPromotable,
                       VectorType *PromotableVecTy,
                       SmallSetVector<PHINode *, 8> &PHIUsers,
-                      SmallSetVector<SelectInst *, 8> &SelectUsers)
+                      SmallSetVector<SelectInst *, 8> &SelectUsers,
+                      uint64_t Skew)
       : DL(DL), AS(AS), Pass(Pass), OldAI(OldAI), NewAI(NewAI),
         NewAllocaBeginOffset(NewAllocaBeginOffset),
         NewAllocaEndOffset(NewAllocaEndOffset), NewAllocaTy(NewAllocaTy),
+        Skew(Skew),
         IntTy(IsIntegerPromotable
                   ? Type::getIntNTy(
                         NewAI.getContext(),
@@ -3433,7 +3512,7 @@ private:
   /// alignment is itself suitable, this will return zero.
   Align getSliceAlign() {
     return commonAlignment(NewAI.getAlign(),
-                           NewBeginOffset - NewAllocaBeginOffset);
+                           NewBeginOffset - NewAllocaBeginOffset + Skew);
   }
 
   unsigned getIndex(uint64_t Offset) {
@@ -5736,6 +5815,14 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
   auto [PartitionTy, IsIntegerWideningViable, VecTy] =
       selectPartitionType(P, DL, AI, *C, AggregateToVector);
 
+  //FILC: Cannot apply after refactor in llvm
+  //bool NoType = true;
+  //for (Slice& S : P) {
+  //  if (isa<LoadInst>(S.getUse()->getUser()) || isa<StoreInst>(S.getUse()->getUser())) {
+  //    NoType = false;
+  //    break;
+  //  }
+  //}
   // Check for the case where we're going to rewrite to a new alloca of the
   // exact same type as the original, and with the same access offsets. In that
   // case, re-use the existing alloca, but still run through the rewriter to
@@ -5771,10 +5858,18 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
   unsigned NumUses = 0;
   SmallSetVector<PHINode *, 8> PHIUsers;
   SmallSetVector<SelectInst *, 8> SelectUsers;
-
+  
+  //FILC: Review hack
+  // Fil-C Hack!
+  // FIXME: We can almost certainly get rid of this, once we have misaligned capability support.
+  constexpr uint64_t FilCWordSize = 8;
+  uint64_t Skew = 0;
+  if (DL.isFilC() && NoType && P.size() >= FilCWordSize)
+    Skew = P.beginOffset() % FilCWordSize;
+  
   AllocaSliceRewriter Rewriter(
       DL, AS, *this, AI, *NewAI, PartitionTy, P.beginOffset(), P.endOffset(),
-      IsIntegerWideningViable, VecTy, PHIUsers, SelectUsers);
+      IsIntegerWideningViable, VecTy, PHIUsers, SelectUsers, Skew);
   bool Promotable = true;
   // Check whether we can have tree-structured merge.
   if (auto DeletedValues = Rewriter.rewriteTreeStructuredMerge(P)) {
@@ -5828,6 +5923,8 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
   }
 
   if (Promotable) {
+    if (verbose)
+      errs() << "Found promotable: " << AI << "\n";
     for (Use *U : AS.getDeadUsesIfPromotable()) {
       auto *OldInst = dyn_cast<Instruction>(U->get());
       Value::dropDroppableUse(*U);
@@ -5862,6 +5959,48 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
     // happened.
     if (NewAI == &AI)
       return {nullptr, 0};
+
+    //FILC: Review
+    // Fil-C Hack!
+    // FIXME: We can almost certainly get rid of this, once we have misaligned capability support.
+    if (Skew != 0) {
+      // If we have made a nonpromotable alloca without a type then it's likely that we
+      // are copying around data out of phase with the Fil-C word size. Fix the alloca so
+      // that copies to/from it keep pointers in phase.
+
+      Type* NewSliceTy = ArrayType::get(Type::getInt8Ty(*C), P.size() + Skew);
+      
+      AllocaInst* NewNewAI = new AllocaInst(
+        NewSliceTy, AI.getAddressSpace(), nullptr,
+        commonAlignment(AI.getAlign(), P.beginOffset() - Skew), NewAI->getName() + ".filc",
+        NewAI);
+      NewNewAI->setDebugLoc(AI.getDebugLoc());
+      GetElementPtrInst* GEP = GetElementPtrInst::Create(
+        Type::getInt8Ty(*C), NewNewAI,
+        { ConstantInt::get(DL.getIndexType(*C, 0), Skew) },
+        "filc_skew", NewAI);
+      GEP->setDebugLoc(AI.getDebugLoc());
+      if (verbose) {
+        errs() << "Replacing NewAI = " << *NewAI << "\n";
+        errs() << "With NewNewAI = " << *NewNewAI << "\n";
+        errs() << "And GEP = " << *GEP << "\n";
+      }
+      // FIXME: This makes lifetime intrinsics point to the GEP, not the alloca, which is wrong,
+      // but it doesn't matter because Fil-C kills the lifetime intrinsics anyway. :-/
+      NewAI->replaceAllUsesWith(GEP);
+      NewAI->eraseFromParent();
+      // Definitely don't iterate on this one again, since that would just make us loop
+      // forever.
+      // FIXME: It would be great if we could let this alloca get a chance at promotion. To do that,
+      // we'd have to have:
+      // - A better way of detecting when it's got no type. Probably, it should be based on whether
+      //   all uses are mem transfers.
+      // - A better way of detecting that we changed nothing. the NewAI == &AI check will not see it,
+      //   so here, we'll have to see what we're creating exactly the same alloca. We could probably
+      //   do that by comparing size and type.
+      //FILC: Needs to change return to tuple
+      return NewNewAI;
+    }
 
     // If we can't promote the alloca, iterate on it to check for new
     // refinements exposed by splitting the current alloca. Don't iterate on an
@@ -6090,6 +6229,8 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
     if (isa<LoadInst>(S.getUse()->getUser()) ||
         isa<StoreInst>(S.getUse()->getUser())) {
+      if (verbose)
+        errs() << "Making " << *S.getUse()->getUser() << " nonsplittable (bitvector case)\n";
       S.makeUnsplittable();
       IsSorted = false;
     }

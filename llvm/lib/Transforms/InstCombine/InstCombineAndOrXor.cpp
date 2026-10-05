@@ -1668,6 +1668,10 @@ Instruction *InstCombinerImpl::foldLogicOfIsFPClass(BinaryOperator &BO,
 ///   cond = select i1 neg, value.neg, value
 Instruction *InstCombinerImpl::canonicalizeConditionalNegationViaMathToSelect(
     BinaryOperator &I) {
+  //FILC: Review
+  if(true)
+    return nullptr;
+  else {
   assert(I.getOpcode() == BinaryOperator::Xor && "Only for xor!");
   Value *Cond, *X;
   // As per complexity ordering, `xor` is not commutative here.
@@ -1678,6 +1682,7 @@ Instruction *InstCombinerImpl::canonicalizeConditionalNegationViaMathToSelect(
     return nullptr;
   return createSelectInstWithUnknownProfile(
       Cond, Builder.CreateNeg(X, X->getName() + ".neg"), X);
+  }
 }
 
 /// This a limited reassociation for a special case (see above) where we are
@@ -2519,7 +2524,8 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
     Value *IsZero = Builder.CreateICmpEQ(X, ConstantInt::get(Ty, 0));
     return new ZExtInst(IsZero, Ty);
   }
-
+  //FILC: Review
+  if(false) {
   // (-(X & 1)) & Y --> (X & 1) == 0 ? 0 : Y
   Value *Neg;
   if (match(&I,
@@ -2528,6 +2534,7 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
     Value *Cmp = Builder.CreateIsNull(Neg);
     return createSelectInstWithUnknownProfile(Cmp,
                                               ConstantInt::getNullValue(Ty), Y);
+  }
   }
 
   // Canonicalize:
@@ -2674,6 +2681,8 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
       }
     }
 
+    //FILC: Review
+    if(false)
     // When the mask is a power-of-2 constant and op0 is a shifted-power-of-2
     // constant, test if the shift amount equals the offset bit index:
     // (ShiftC << X) & C --> X == (log2(C) - log2(ShiftC)) ? C : 0
@@ -2728,6 +2737,7 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
               Cmp, ConstantInt::get(Ty, *C3), ConstantInt::getNullValue(Ty));
         }
       }
+    }
     }
   }
 
@@ -2875,6 +2885,8 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
   if (Instruction *Sel = foldBinopOfSextBoolToSelect(I))
     return Sel;
 
+  //FILC: Review
+  if(false) {
   // and(sext(A), B) / and(B, sext(A)) --> A ? B : 0, where A is i1 or <N x i1>.
   // TODO: Move this into foldBinopOfSextBoolToSelect as a more generalized fold
   //       with binop identity constant. But creating a select with non-constant
@@ -2929,6 +2941,7 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
     Value *IsNeg = Builder.CreateIsNeg(X, "isneg");
     return createSelectInstWithUnknownProfile(IsNeg,
                                               ConstantInt::getNullValue(Ty), Y);
+  }
   }
 
   // (~x) & y  -->  ~(x | (~y))  iff that gets rid of inversions
@@ -4534,6 +4547,7 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
   if (Instruction *Sel = foldBinopOfSextBoolToSelect(I))
     return Sel;
 
+  if(false) {
   // or(sext(A), B) / or(B, sext(A)) --> A ? -1 : B, where A is i1 or <N x i1>.
   // TODO: Move this into foldBinopOfSextBoolToSelect as a more generalized fold
   //       with binop identity constant. But creating a select with non-constant
@@ -4543,7 +4557,7 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
       A->getType()->isIntOrIntVectorTy(1))
     return createSelectInstWithUnknownProfile(
         A, ConstantInt::getAllOnesValue(Ty), B);
-
+  }
   // Note: If we've gotten to the point of visiting the outer OR, then the
   // inner one couldn't be simplified.  If it was a constant, then it won't
   // be simplified by a later pass either, so we try swapping the inner/outer
@@ -4581,8 +4595,9 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
     }
   }
 
+  //FILC: Review
   // or(ashr(subNSW(Y, X), ScalarSizeInBits(Y) - 1), X)  --> X s> Y ? -1 : X.
-  {
+  if(false) {
     Value *X, *Y;
     if (match(&I, m_c_Or(m_OneUse(m_AShr(
                              m_NSWSub(m_Value(Y), m_Value(X)),
@@ -5088,6 +5103,8 @@ static Instruction *canonicalizeAbs(BinaryOperator &Xor,
   if (Op0->hasNUses(2))
     std::swap(Op0, Op1);
 
+  //FILC: Review
+  if(false) {
   Type *Ty = Xor.getType();
   Value *A;
   const APInt *ShAmt;
@@ -5104,6 +5121,7 @@ static Instruction *canonicalizeAbs(BinaryOperator &Xor,
                       ? Constant::getNullValue(A->getType())
                       : Builder.CreateNeg(A, "", Add->hasNoSignedWrap());
     return SelectInst::Create(IsNeg, NegA, A);
+  }
   }
   return nullptr;
 }
@@ -5260,7 +5278,8 @@ Instruction *InstCombinerImpl::foldNot(BinaryOperator &I) {
     Value *NotY = Builder.CreateNot(Y, Y->getName() + ".not");
     return BinaryOperator::CreateOr(X, NotY);
   }
-  if (match(NotOp, m_OneUse(m_LogicalAnd(m_Not(m_Value(X)), m_Value(Y))))) {
+  //FILC: Review
+  if ( false && match(NotOp, m_OneUse(m_LogicalAnd(m_Not(m_Value(X)), m_Value(Y))))) {
     Value *NotY = Builder.CreateNot(Y, Y->getName() + ".not");
     SelectInst *SI = SelectInst::Create(X, ConstantInt::getTrue(Ty), NotY, "",
                                         nullptr, cast<Instruction>(NotOp));
@@ -5274,7 +5293,8 @@ Instruction *InstCombinerImpl::foldNot(BinaryOperator &I) {
     Value *NotY = Builder.CreateNot(Y, Y->getName() + ".not");
     return BinaryOperator::CreateAnd(X, NotY);
   }
-  if (match(NotOp, m_OneUse(m_LogicalOr(m_Not(m_Value(X)), m_Value(Y))))) {
+  //FILC: Review
+  if (false && match(NotOp, m_OneUse(m_LogicalOr(m_Not(m_Value(X)), m_Value(Y))))) {
     Value *NotY = Builder.CreateNot(Y, Y->getName() + ".not");
     SelectInst *SI = SelectInst::Create(X, NotY, ConstantInt::getFalse(Ty), "",
                                         nullptr, cast<Instruction>(NotOp));
@@ -5553,8 +5573,9 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
     //   select(X >s -1, C, ~C)
     // The ashr creates "AllZeroOrAllOne's", which then optionally inverses the
     // constant depending on whether this input is less than 0.
-    const APInt *CA;
-    if (match(Op0, m_OneUse(m_TruncOrSelf(
+    //FILC: Review
+    //const APInt *CA;
+    if (false && match(Op0, m_OneUse(m_TruncOrSelf(
                        m_AShr(m_Value(X), m_APIntAllowPoison(CA))))) &&
         *CA == X->getType()->getScalarSizeInBits() - 1 &&
         !match(C1, m_AllOnes())) {
@@ -5744,7 +5765,8 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
   }
 
   // (A & B) ^ (A | C) --> A ? ~B : C -- There are 4 commuted variants.
-  if (I.getType()->isIntOrIntVectorTy(1) &&
+  //FILC: Review
+  if (false && I.getType()->isIntOrIntVectorTy(1) &&
       match(&I, m_c_Xor(m_OneUse(m_LogicalAnd(m_Value(A), m_Value(B))),
                         m_OneUse(m_LogicalOr(m_Value(C), m_Value(D)))))) {
     bool NeedFreeze = isa<SelectInst>(Op0) && isa<SelectInst>(Op1) && B == D;

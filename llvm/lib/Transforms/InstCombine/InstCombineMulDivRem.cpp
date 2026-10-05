@@ -555,7 +555,8 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
 
     // (ashr i32 X, 31) * C --> (X < 0) ? -C : 0
     const APInt *C;
-    if (match(Op0, m_OneUse(m_AShr(m_Value(X), m_APInt(C)))) &&
+	//FILC: Review
+    if (false && match(Op0, m_OneUse(m_AShr(m_Value(X), m_APInt(C)))) &&
         *C == C->getBitWidth() - 1) {
       Constant *NegC = ConstantExpr::getNeg(ImmC);
       Value *IsNeg = Builder.CreateIsNeg(X, "isneg");
@@ -568,7 +569,8 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   // TODO: We are not checking one-use because the elimination of the multiply
   //       is better for analysis?
   const APInt *C;
-  if (match(&I, m_c_BinOp(m_LShr(m_Value(X), m_APInt(C)), m_Value(Y))) &&
+  //FILC: Review
+  if (false && match(&I, m_c_BinOp(m_LShr(m_Value(X), m_APInt(C)), m_Value(Y))) &&
       *C == C->getBitWidth() - 1) {
     Value *IsNeg = Builder.CreateIsNeg(X, "isneg");
     return createSelectInstWithUnknownProfile(IsNeg, Y,
@@ -576,7 +578,8 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   }
 
   // (and X, 1) * Y --> (trunc X) ? Y : 0
-  if (match(&I, m_c_BinOp(m_OneUse(m_And(m_Value(X), m_One())), m_Value(Y)))) {
+  //FILC: Review
+  if (false && match(&I, m_c_BinOp(m_OneUse(m_And(m_Value(X), m_One())), m_Value(Y)))) {
     Value *Tr = Builder.CreateTrunc(X, CmpInst::makeCmpResultType(Ty));
     return createSelectInstWithUnknownProfile(Tr, Y,
                                               ConstantInt::getNullValue(Ty));
@@ -1983,7 +1986,8 @@ Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
 
   // abs(X) / X --> X > -1 ? 1 : -1
   // X / abs(X) --> X > -1 ? 1 : -1
-  if (match(&I, m_c_BinOp(
+  //FILC: Review
+  if (false && match(&I, m_c_BinOp(
                     m_OneUse(m_Intrinsic<Intrinsic::abs>(m_Value(X), m_One())),
                     m_Deferred(X)))) {
     Value *Cond = Builder.CreateIsNotNeg(X);
@@ -2028,7 +2032,8 @@ Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
   }
 
   // -X / X --> X == INT_MIN ? 1 : -1
-  if (isKnownNegation(Op0, Op1)) {
+  //FILC: Review
+  if (false && isKnownNegation(Op0, Op1)) {
     APInt MinVal = APInt::getSignedMinValue(Ty->getScalarSizeInBits());
     Value *Cond = Builder.CreateICmpEQ(Op0, ConstantInt::get(Ty, MinVal));
     return createSelectInstWithUnknownProfile(Cond, ConstantInt::get(Ty, 1),
@@ -2586,7 +2591,8 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
 
   // Op0 urem C -> Op0 < C ? Op0 : Op0 - C, where C >= signbit.
   // Op0 must be frozen because we are increasing its number of uses.
-  if (match(Op1, m_Negative())) {
+  //FILC: Review
+  if (false && match(Op1, m_Negative())) {
     Value *F0 = Op0;
     if (!isGuaranteedNotToBeUndef(Op0))
       F0 = Builder.CreateFreeze(Op0, Op0->getName() + ".fr");
@@ -2600,7 +2606,8 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
   // max unsigned value. In that case, the remainder is 0:
   // urem Op0, (sext i1 X) --> (Op0 == -1) ? 0 : Op0
   Value *X;
-  if (match(Op1, m_SExt(m_Value(X))) && X->getType()->isIntOrIntVectorTy(1)) {
+  //FILC: Review
+  if (false && match(Op1, m_SExt(m_Value(X))) && X->getType()->isIntOrIntVectorTy(1)) {
     Value *FrozenOp0 = Op0;
     if (!isGuaranteedNotToBeUndef(Op0))
       FrozenOp0 = Builder.CreateFreeze(Op0, Op0->getName() + ".frozen");
@@ -2611,7 +2618,8 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
   }
 
   // For "(X + 1) % Op1" and if (X u< Op1) => (X + 1) == Op1 ? 0 : X + 1 .
-  if (match(Op0, m_Add(m_Value(X), m_One()))) {
+  //FILC: Review
+  if (false && match(Op0, m_Add(m_Value(X), m_One()))) {
     Value *Val =
         simplifyICmpInst(ICmpInst::ICMP_ULT, X, Op1, SQ.getWithInstruction(&I));
     if (Val && match(Val, m_One())) {

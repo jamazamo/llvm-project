@@ -543,8 +543,9 @@ Error DataLayout::parseSpecification(
       unsigned AddrSpace;
       if (Error Err = parseAddrSpace(Str, AddrSpace))
         return Err;
-      if (AddrSpace == 0)
-        return createStringError("address space 0 cannot be non-integral");
+      //FILC: Review
+      // if (AddrSpace == 0)
+      //   return createStringError("address space 0 cannot be non-integral");
       NonIntegralAddressSpaces.push_back(AddrSpace);
     }
     return Error::success();

@@ -6,6 +6,8 @@ add_llvm_component_library(LLVMInstrumentation
   ControlHeightReduction.cpp
   CopyProf.cpp
   DataFlowSanitizer.cpp
+  DeleteRedundantPollchecks.cpp
+  FilPizlonator.cpp
   GCOVProfiling.cpp
   BlockCoverageInference.cpp
   MemProfInstrumentation.cpp
@@ -15,6 +17,7 @@ add_llvm_component_library(LLVMInstrumentation
   IndirectCallPromotion.cpp
   InstrProfiling.cpp
   KCFI.cpp
+  KillUB.cpp
   LowerAllowCheckPass.cpp
   PGOCtxProfFlattening.cpp
   PGOCtxProfLowering.cpp

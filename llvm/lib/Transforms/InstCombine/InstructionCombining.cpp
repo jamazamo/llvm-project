@@ -3715,6 +3715,10 @@ static std::optional<ModRefInfo>
 isAllocSiteRemovable(Instruction *AI, SmallVectorImpl<Instruction *> &Users,
                      const TargetLibraryInfo &TLI, bool KnowInit,
                      unsigned MaxUsers) {
+  //FILC: Review
+  if (AI->getModule()->getDataLayout().isFilC())
+    return false;
+  
   SmallVector<Instruction*, 4> Worklist;
   const std::optional<StringRef> Family = getAllocationFamily(AI, &TLI);
   Worklist.push_back(AI);

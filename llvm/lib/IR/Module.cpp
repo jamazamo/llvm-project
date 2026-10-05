@@ -445,6 +445,11 @@ void Module::setDataLayout(StringRef Desc) { DL = DataLayout(Desc); }
 
 void Module::setDataLayout(const DataLayout &Other) { DL = Other; }
 
+//FILC: Review
+void Module::setDataLayoutAfterFilC(StringRef Desc) { DLAfterFilC = DataLayout(Desc); }
+
+void Module::setDataLayoutAfterFilC(const DataLayout &Other) { DLAfterFilC = Other; }
+
 DICompileUnit *Module::debug_compile_units_iterator::operator*() const {
   return cast<DICompileUnit>(CUs->getOperand(Idx));
 }

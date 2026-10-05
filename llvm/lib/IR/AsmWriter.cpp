@@ -3196,6 +3196,10 @@ void AssemblyWriter::printModule(const Module *M) {
   const std::string &DL = M->getDataLayoutStr();
   if (!DL.empty())
     Out << "target datalayout = \"" << DL << "\"\n";
+  //FILC: Review
+  const std::string &DLAfterFilC = M->getDataLayoutAfterFilCStr();
+  if (!DLAfterFilC.empty())
+    Out << "target datalayout_after_filc = \"" << DLAfterFilC << "\"\n";
   if (!M->getTargetTriple().empty())
     Out << "target triple = \"" << M->getTargetTriple().str() << "\"\n";
 
@@ -4501,7 +4505,10 @@ static void maybePrintCallAddrSpace(const Value *Operand, const Instruction *I,
   // We also print it if it is zero but not equal to the program address space
   // or if we can't find a valid Module* to make it possible to parse
   // the resulting file even without a datalayout string.
-  unsigned CallAddrSpace = Operand->getType()->getPointerAddressSpace();
+  //FILC: Review
+  unsigned CallAddrSpace = 0;
+  if (Operand->getType()->isPointerTy())
+    CallAddrSpace = Operand->getType()->getPointerAddressSpace();
   const Module *Mod = getModuleFromVal(I);
   bool ForcePrintAddrSpace =
       !Mod || Mod->getDataLayout().getProgramAddressSpace() != 0;

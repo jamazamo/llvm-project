@@ -600,6 +600,8 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(source_filename);
   KEYWORD(unwind);
   KEYWORD(datalayout);
+  //FILC: Review
+  KEYWORD(datalayout_after_filc);
   KEYWORD(volatile);
   KEYWORD(elementwise);
   KEYWORD(atomic);

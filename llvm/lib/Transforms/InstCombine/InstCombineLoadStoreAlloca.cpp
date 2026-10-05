@@ -1497,7 +1497,8 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
 
   // If the RHS is an alloca with a single use, zapify the store, making the
   // alloca dead.
-  if (Ptr->hasOneUse()) {
+  //FILC: Review
+  if (Ptr->hasOneUse() && !DL.isNonIntegralPointerType(Ptr->getType())) {
     if (isa<AllocaInst>(Ptr))
       return eraseInstFromFunction(SI);
     if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
@@ -1511,8 +1512,12 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
   // If we have a store to a location which is known constant, we can conclude
   // that the store must be storing the constant value (else the memory
   // wouldn't be constant), and this must be a noop.
-  if (!isModSet(AA->getModRefInfoMask(Ptr)))
+  //FILC: Review
+  if (!isModSet(AA->getModRefInfoMask(Ptr))) {
+    if (DL.isFilC())
+      return nullptr;
     return eraseInstFromFunction(SI);
+  }
 
   // Do really simple DSE, to catch cases where there are several consecutive
   // stores to the same location, separated by a few arithmetic operations. This
