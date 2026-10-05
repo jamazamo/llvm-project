@@ -936,7 +936,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(ToolChain.GetFilePath("crt_pad_segment.o")));
   }
 
-    Args.AddAllArgs(CmdArgs, {options::OPT_L});
+    Args.AddAllArgs(CmdArgs, options::OPT_L);
 
   // FILC: Review
   if (ToolChain.getDriver().HasPizfix) {
@@ -1076,7 +1076,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // The profile runtime also needs access to system libraries.
   getToolChain().addProfileRTLibs(Args, CmdArgs);
 
-  FILC: Review
+  // FILC: Review
   Args.ClaimAllArgs(options::OPT_pthread);
 
   if ((false) && D.CCCIsCXX() &&
@@ -1329,7 +1329,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                             Output.getBaseInput());
     C.addCommand(std::make_unique<Command>(
         JA, *this, ResponseFileSupport::AtFileCurCP(),
-        D.getClangProgramPath(), AArch64Args, Inputs, AArch64Output));
+        D.getDriverProgramPath(), AArch64Args, Inputs, AArch64Output));
   }
 
   if (APEOutputFilename) {

@@ -221,7 +221,7 @@ size_t TargetInfo::getMaxBitIntWidth() const {
 }
 
 //FILC: Review
-void TargetInfo::resetDataLayout(StringRef, const char *) {
+void TargetInfo::resetDataLayout(StringRef) {
   llvm_unreachable("YOLO version of resetDataLayout called");
 }
 

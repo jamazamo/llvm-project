@@ -1755,24 +1755,28 @@ AArch64leTargetInfo::AArch64leTargetInfo(const llvm::Triple &Triple,
                                          const TargetOptions &Opts)
     : AArch64TargetInfo(Triple, Opts) {}
 
-// FILC: Removed in llvm main. Check if it is still needed
-void AArch64leTargetInfo::setDataLayout() {
-  if (getTriple().isOSBinFormatMachO()) {
-    if(getTriple().isArch32Bit())
-      resetDataLayout("e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-"
-                      "i128:128-n32:64-S128-Fn32",
-                      "_");
-    else
-      resetDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-"
-                      "n32:64-S128-Fn32",
-                      "_");
-  } else
-    resetDataLayout(
-        "e-m:e-ni:0-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
-        "i64:64-i128:128-n32:64-S128-Fn32",
-        "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
-        "i64:64-i128:128-n32:64-S128-Fn32", "");
-}
+// FILC: Review
+// 9dc3255cb9711279dfd8262ed3c027c4db9b4288
+// [Clang] Use DataLayout from TargetParser (#171135)
+// This switches clang to use the data layouts from TargetParser, instead
+// of maintaining its own copy of data layouts, which are required to match
+// void AArch64leTargetInfo::setDataLayout() {
+//   if (getTriple().isOSBinFormatMachO()) {
+//     if(getTriple().isArch32Bit())
+//       resetDataLayout("e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-"
+//                       "i128:128-n32:64-S128-Fn32",
+//                       "_");
+//     else
+//       resetDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-"
+//                       "n32:64-S128-Fn32",
+//                       "_");
+//   } else
+//     resetDataLayout(
+//         "e-m:e-ni:0-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
+//         "i64:64-i128:128-n32:64-S128-Fn32",
+//         "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-"
+//         "i64:64-i128:128-n32:64-S128-Fn32", "");
+// }
 
 void AArch64leTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {

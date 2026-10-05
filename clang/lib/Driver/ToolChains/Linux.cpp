@@ -12,6 +12,7 @@
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
+#include "clang/Basic/OffloadArch.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Distro.h"
@@ -559,17 +560,6 @@ static void handlePAuthABI(const Driver &D, const ArgList &DriverArgs,
     CC1Args.push_back("-faarch64-jump-table-hardening");
 }
 
-void Linux::addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
-                                  llvm::opt::ArgStringList &CC1Args,
-                                  BoundArch BA,
-                                  Action::OffloadKind DeviceOffloadKind) const {
-  llvm::Triple Triple(ComputeEffectiveClangTriple(DriverArgs));
-  if (Triple.isAArch64() && Triple.getEnvironment() == llvm::Triple::PAuthTest)
-    handlePAuthABI(getDriver(), DriverArgs, CC1Args);
-  Generic_ELF::addClangTargetOptions(DriverArgs, CC1Args, BA,
-                                     DeviceOffloadKind);
-}
-
 std::string Linux::getDynamicLinker(const ArgList &Args) const {
   const llvm::Triple::ArchType Arch = getArch();
   const llvm::Triple &Triple = getTriple();
@@ -792,9 +782,9 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
 }
 
 //FILC: Review
-void Linux::addClangTargetOptions(
-    const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadKind) const {
+void Linux::addClangTargetOptions(const llvm::opt::ArgList &DriverArgs, 
+                                  llvm::opt::ArgStringList &CC1Args,BoundArch BoundArch, 
+                                  Action::OffloadKind DeviceOffloadKind) const {
   const Driver &D = getDriver();
 
   // Cosmopolitan libc keeps its thread information block (the "TIB") in the
@@ -871,7 +861,7 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
       addSystemInclude(DriverArgs, CC1Args, P);
     }
     
-    if (!DriverArgs.hasArg(clang::driver::options::OPT_nostdinc)
+    if (!DriverArgs.hasArg(options::OPT_nostdinc)
         && !DriverArgs.hasArg(options::OPT_nostdlibinc)) {
       std::string P;
       if (Arg *A = DriverArgs.getLastArg(options::OPT_filc_include)) {
@@ -891,7 +881,7 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 
   SmallString<128> ResourceDirInclude(D.ResourceDir);
   llvm::sys::path::append(ResourceDirInclude, "include");
-  if (!DriverArgs.hasArg(clang::driver::options::OPT_nostdinc)
+  if (!DriverArgs.hasArg(options::OPT_nostdinc)
       && !DriverArgs.hasArg(options::OPT_nobuiltininc))
     addSystemInclude(DriverArgs, CC1Args, ResourceDirInclude);
 

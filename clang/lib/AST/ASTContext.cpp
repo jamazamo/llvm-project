@@ -13573,8 +13573,8 @@ VTableContextBase *ASTContext::getVTableContext() {
     else {
 	  //FILC: Review. Clean merge
 	  // What do the other options do?
-      auto ComponentLayout = ItaniumVTableContext::Pointer;
-      VTContext.reset(new ItaniumVTableContext(*this, ComponentLayout));
+      // auto ComponentLayout = ItaniumVTableContext::Pointer;
+      VTContext.reset(new ItaniumVTableContext(*this));
     }
   }
   return VTContext.get();

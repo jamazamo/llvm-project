@@ -76,7 +76,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   HasFastHalfType = true;
   HasFloat16 = true;
 
-  DataLayoutString = Triple.computeDataLayout();
+  //FILC: FIX ME
+  //DataLayoutString = Triple.computeDataLayout();
 
   // If possible, get a TargetInfo for our host triple, so we can match its
   // types.

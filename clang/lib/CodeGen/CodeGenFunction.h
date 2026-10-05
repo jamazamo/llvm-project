@@ -2956,7 +2956,8 @@ public:
   /// more efficient if the caller knows that the address will not be exposed.
   // FILC: Review
   llvm::AllocaInst *CreateTempAlloca(llvm::Type *Ty, const Twine &Name = "tmp",
-                                     llvm::Value *ArraySize = nullptr);
+                                     llvm::Value *ArraySize = nullptr,
+                                    bool HasUnion = false);
 
   /// CreateTempAlloca - This creates a alloca and inserts it into the entry
   /// block. The alloca is casted to the address space of \p UseAddrSpace if
