@@ -239,7 +239,7 @@ private:
   NamedMDSymTabType NamedMDSymTab;  ///< NamedMDNode names.
   DataLayout DL;                  ///< DataLayout associated with the module
   //FILC: Review
-  //DataLayout DLAfterFilC; // FIXME: Kill this with fire, it's no longer needed.
+  DataLayout DLAfterFilC; // FIXME: Kill this with fire, it's no longer needed.
   StringMap<unsigned>
       CurrentIntrinsicIds; ///< Keep track of the current unique id count for
                            ///< the specified intrinsic basename.
