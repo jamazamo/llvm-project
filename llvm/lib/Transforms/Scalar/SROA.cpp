@@ -5862,10 +5862,10 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
   //FILC: Review hack
   // Fil-C Hack!
   // FIXME: We can almost certainly get rid of this, once we have misaligned capability support.
-  constexpr uint64_t FilCWordSize = 8;
+  // constexpr uint64_t FilCWordSize = 8;
   uint64_t Skew = 0;
-  if (DL.isFilC() && NoType && P.size() >= FilCWordSize)
-    Skew = P.beginOffset() % FilCWordSize;
+  // if (DL.isFilC() && NoType && P.size() >= FilCWordSize)
+  //   Skew = P.beginOffset() % FilCWordSize;
   
   AllocaSliceRewriter Rewriter(
       DL, AS, *this, AI, *NewAI, PartitionTy, P.beginOffset(), P.endOffset(),
@@ -5963,44 +5963,44 @@ SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS, Partition &P) {
     //FILC: Review
     // Fil-C Hack!
     // FIXME: We can almost certainly get rid of this, once we have misaligned capability support.
-    if (Skew != 0) {
-      // If we have made a nonpromotable alloca without a type then it's likely that we
-      // are copying around data out of phase with the Fil-C word size. Fix the alloca so
-      // that copies to/from it keep pointers in phase.
+    //if (Skew != 0) {
+    //  // If we have made a nonpromotable alloca without a type then it's likely that we
+    //  // are copying around data out of phase with the Fil-C word size. Fix the alloca so
+    //  // that copies to/from it keep pointers in phase.
 
-      Type* NewSliceTy = ArrayType::get(Type::getInt8Ty(*C), P.size() + Skew);
+    //  Type* NewSliceTy = ArrayType::get(Type::getInt8Ty(*C), P.size() + Skew);
       
-      AllocaInst* NewNewAI = new AllocaInst(
-        NewSliceTy, AI.getAddressSpace(), nullptr,
-        commonAlignment(AI.getAlign(), P.beginOffset() - Skew), NewAI->getName() + ".filc",
-        NewAI);
-      NewNewAI->setDebugLoc(AI.getDebugLoc());
-      GetElementPtrInst* GEP = GetElementPtrInst::Create(
-        Type::getInt8Ty(*C), NewNewAI,
-        { ConstantInt::get(DL.getIndexType(*C, 0), Skew) },
-        "filc_skew", NewAI);
-      GEP->setDebugLoc(AI.getDebugLoc());
-      if (verbose) {
-        errs() << "Replacing NewAI = " << *NewAI << "\n";
-        errs() << "With NewNewAI = " << *NewNewAI << "\n";
-        errs() << "And GEP = " << *GEP << "\n";
-      }
-      // FIXME: This makes lifetime intrinsics point to the GEP, not the alloca, which is wrong,
-      // but it doesn't matter because Fil-C kills the lifetime intrinsics anyway. :-/
-      NewAI->replaceAllUsesWith(GEP);
-      NewAI->eraseFromParent();
-      // Definitely don't iterate on this one again, since that would just make us loop
-      // forever.
-      // FIXME: It would be great if we could let this alloca get a chance at promotion. To do that,
-      // we'd have to have:
-      // - A better way of detecting when it's got no type. Probably, it should be based on whether
-      //   all uses are mem transfers.
-      // - A better way of detecting that we changed nothing. the NewAI == &AI check will not see it,
-      //   so here, we'll have to see what we're creating exactly the same alloca. We could probably
-      //   do that by comparing size and type.
-      //FILC: Needs to change return to tuple
-      return NewNewAI;
-    }
+    //  AllocaInst* NewNewAI = new AllocaInst(
+    //    NewSliceTy, AI.getAddressSpace(), nullptr,
+    //    commonAlignment(AI.getAlign(), P.beginOffset() - Skew), NewAI->getName() + ".filc",
+    //    NewAI);
+    //  NewNewAI->setDebugLoc(AI.getDebugLoc());
+    //  GetElementPtrInst* GEP = GetElementPtrInst::Create(
+    //    Type::getInt8Ty(*C), NewNewAI,
+    //    { ConstantInt::get(DL.getIndexType(*C, 0), Skew) },
+    //    "filc_skew", NewAI);
+    //  GEP->setDebugLoc(AI.getDebugLoc());
+    //  if (verbose) {
+    //    errs() << "Replacing NewAI = " << *NewAI << "\n";
+    //    errs() << "With NewNewAI = " << *NewNewAI << "\n";
+    //    errs() << "And GEP = " << *GEP << "\n";
+    //  }
+    //  // FIXME: This makes lifetime intrinsics point to the GEP, not the alloca, which is wrong,
+    //  // but it doesn't matter because Fil-C kills the lifetime intrinsics anyway. :-/
+    //  NewAI->replaceAllUsesWith(GEP);
+    //  NewAI->eraseFromParent();
+    //  // Definitely don't iterate on this one again, since that would just make us loop
+    //  // forever.
+    //  // FIXME: It would be great if we could let this alloca get a chance at promotion. To do that,
+    //  // we'd have to have:
+    //  // - A better way of detecting when it's got no type. Probably, it should be based on whether
+    //  //   all uses are mem transfers.
+    //  // - A better way of detecting that we changed nothing. the NewAI == &AI check will not see it,
+    //  //   so here, we'll have to see what we're creating exactly the same alloca. We could probably
+    //  //   do that by comparing size and type.
+    //  //FILC: Needs to change return to tuple
+    //  return NewNewAI;
+    //}
 
     // If we can't promote the alloca, iterate on it to check for new
     // refinements exposed by splitting the current alloca. Don't iterate on an

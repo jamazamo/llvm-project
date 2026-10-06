@@ -3717,7 +3717,7 @@ isAllocSiteRemovable(Instruction *AI, SmallVectorImpl<Instruction *> &Users,
                      unsigned MaxUsers) {
   //FILC: Review
   if (AI->getModule()->getDataLayout().isFilC())
-    return false;
+    return std::nullopt;
   
   SmallVector<Instruction*, 4> Worklist;
   const std::optional<StringRef> Family = getAllocationFamily(AI, &TLI);

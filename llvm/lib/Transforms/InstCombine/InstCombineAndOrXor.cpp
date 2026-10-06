@@ -2682,7 +2682,7 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
     }
 
     //FILC: Review
-    if(false)
+    if(false) {
     // When the mask is a power-of-2 constant and op0 is a shifted-power-of-2
     // constant, test if the shift amount equals the offset bit index:
     // (ShiftC << X) & C --> X == (log2(C) - log2(ShiftC)) ? C : 0
@@ -5574,7 +5574,7 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
     // The ashr creates "AllZeroOrAllOne's", which then optionally inverses the
     // constant depending on whether this input is less than 0.
     //FILC: Review
-    //const APInt *CA;
+    const APInt *CA;
     if (false && match(Op0, m_OneUse(m_TruncOrSelf(
                        m_AShr(m_Value(X), m_APIntAllowPoison(CA))))) &&
         *CA == X->getType()->getScalarSizeInBits() - 1 &&
