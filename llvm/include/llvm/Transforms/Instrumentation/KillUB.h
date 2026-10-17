@@ -7,10 +7,9 @@ namespace llvm {
 
 class Module;
 
-class KillUBPass : public PassInfoMixin<KillUBPass> {
+class KillUBPass : public RequiredPassInfoMixin<KillUBPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

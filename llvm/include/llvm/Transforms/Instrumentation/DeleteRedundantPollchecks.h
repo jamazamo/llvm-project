@@ -8,10 +8,9 @@ namespace llvm {
 class Module;
 
 class DeleteRedundantPollchecksPass
-    : public PassInfoMixin<DeleteRedundantPollchecksPass> {
+    : public RequiredPassInfoMixin<DeleteRedundantPollchecksPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm
